@@ -272,7 +272,7 @@ mod tests {
     use std::collections::HashSet;
 
     use super::{
-        featured_collections, paginate, parse_categories, parse_search, validate_page,
+        AppRecord, featured_collections, paginate, parse_categories, parse_search, validate_page,
         validate_query,
     };
 
