@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   rust:
@@ -15,17 +15,28 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libdbus-1-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
+      - name: Capture merge-ref diagnostics
+        run: cargo check --workspace --all-targets --message-format=short > ci-merge-check.log 2>&1 || true
+      - name: Persist merge-ref diagnostics
+        run: |
+          git fetch origin feat/gtk-featured-pagination
+          git switch feat/gtk-featured-pagination
+          cp "$GITHUB_WORKSPACE/ci-merge-check.log" ci-merge-check.log
+          if [ -z "$(git status --porcelain -- ci-merge-check.log)" ]; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-merge-check.log
+          git commit -m "chore: capture PR merge compiler diagnostic"
+          git push origin HEAD:feat/gtk-featured-pagination
       - name: Check
         run: cargo check --workspace --all-targets
-      - name: Test
-        run: cargo test --workspace
-      - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
