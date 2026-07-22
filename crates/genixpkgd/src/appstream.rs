@@ -211,7 +211,9 @@ fn collection(
 
 fn paginate(records: Vec<AppRecord>, offset: u64, limit: u64) -> CatalogPage {
     let total = records.len() as u64;
-    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(records.len());
+    let start = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(records.len());
     let end = start
         .saturating_add(usize::try_from(limit).unwrap_or(usize::MAX))
         .min(records.len());
