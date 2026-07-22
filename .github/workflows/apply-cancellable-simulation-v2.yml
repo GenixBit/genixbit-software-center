@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/cancellable-simulation-subprocess
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: write
