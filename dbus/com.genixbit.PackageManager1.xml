@@ -4,15 +4,25 @@
     <method name="Version">
       <arg name="version" type="s" direction="out"/>
     </method>
+    <method name="SystemSnapshot">
+      <arg name="snapshot" type="(a(ssssstbss)a(sssssb)(bbbbttttttas))" direction="out"/>
+    </method>
+    <method name="SystemHealth">
+      <arg name="health" type="(bbbbttttttas)" direction="out"/>
+    </method>
     <method name="ListInstalled">
       <arg name="packages" type="a(ssssstbss)" direction="out"/>
     </method>
     <method name="CheckUpdates">
       <arg name="updates" type="a(sssssb)" direction="out"/>
     </method>
+    <method name="PackageDetails">
+      <arg name="package" type="s" direction="in"/>
+      <arg name="details" type="(bssssssstbsssssasasasbb)" direction="out"/>
+    </method>
     <method name="SearchCatalog">
       <arg name="query" type="s" direction="in"/>
-      <arg name="applications" type="a(sssssssb)" direction="out"/>
+      <arg name="applications" type="a(sssssssasb)" direction="out"/>
     </method>
     <method name="Install">
       <arg name="package" type="s" direction="in"/>
