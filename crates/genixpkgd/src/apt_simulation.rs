@@ -1,4 +1,4 @@
-use anyhow::Context;
+use anyhow::{Context, bail};
 use genixbit_package_model::TransactionChange;
 
 use crate::apt_plan::AptCommandPlan;
