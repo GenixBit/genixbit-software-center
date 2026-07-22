@@ -884,14 +884,19 @@ mod tests {
         drop(manager);
 
         let restored = TransactionManager::new(TransactionJournal::new(path.clone()));
+        let restored_events = restored.events(0, 10).expect("restored events should load");
+        assert_eq!(restored_events[0], preview_event);
+        assert_eq!(restored_events[1], queued_event);
+        assert_eq!(restored_events[2].event, "interrupted");
         assert_eq!(
-            restored.events(0, 10).expect("restored events should load"),
-            [preview_event, queued_event.clone()]
+            restored_events[2].transaction_id,
+            restored_events[1].transaction_id
         );
+        let interrupted_sequence = restored_events[2].sequence;
         let (_, next_event) = restored
             .create_preview(preview("remove", "nano"))
             .expect("new preview should be created");
-        assert!(next_event.sequence > queued_event.sequence);
+        assert!(next_event.sequence > interrupted_sequence);
         drop(restored);
 
         assert!(event_path.exists());
