@@ -1,4 +1,4 @@
-name: Diagnose persistent event history
+name: Fix persistent event history test
 
 on:
   pull_request:
@@ -6,21 +6,48 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  fix:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --workspace --all-targets --message-format=short > check.log 2>&1 || true
-      - uses: actions/upload-artifact@v4
         with:
-          name: event-history-check
-          path: check.log
-          if-no-files-found: error
+          ref: feat/persistent-transaction-event-history
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Rename shadowed preview variable
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/genixpkgd/src/transaction.rs')
+          text = path.read_text()
+          old = '''        let (preview, preview_event) = manager
+              .create_preview(preview("install", "curl"))
+              .expect("preview should be created");
+          let (_, queued_event) = manager
+              .queue_preview(preview.id)
+              .expect("preview should queue");
+          '''
+          new = '''        let (restored_preview, preview_event) = manager
+              .create_preview(preview("install", "curl"))
+              .expect("preview should be created");
+          let (_, queued_event) = manager
+              .queue_preview(restored_preview.id)
+              .expect("preview should queue");
+          '''
+          if old not in text:
+              raise SystemExit('shadowed preview marker not found')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          cargo fmt --all
+      - name: Commit test fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/genixpkgd/src/transaction.rs
+          git commit -m "fix(events): avoid preview helper shadowing in restart test"
+          git push origin HEAD:feat/persistent-transaction-event-history
