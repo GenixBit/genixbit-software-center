@@ -1,0 +1,13 @@
+[1m[92m    Updating[0m crates.io index
+[1m[92m    Checking[0m genixbit-package-model v0.2.0 (/home/runner/work/genixbit-software-center/genixbit-software-center/crates/package-model)
+[1m[92m    Checking[0m genixpkgd v0.2.0 (/home/runner/work/genixbit-software-center/genixbit-software-center/crates/genixpkgd)
+[1m[92m    Checking[0m genixbit-software-center v0.2.0 (/home/runner/work/genixbit-software-center/genixbit-software-center/crates/software-center)
+crates/software-center/src/main.rs:881:1: [1m[91merror[E0428][0m: the name `start_featured_collections_load` is defined multiple times: `start_featured_collections_load` redefined here
+crates/software-center/src/main.rs:922:1: [1m[91merror[E0428][0m: the name `render_featured_collections` is defined multiple times: `render_featured_collections` redefined here
+crates/software-center/src/main.rs:947:1: [1m[91merror[E0428][0m: the name `start_featured_collections_load` is defined multiple times: `start_featured_collections_load` redefined here
+crates/software-center/src/main.rs:988:1: [1m[91merror[E0428][0m: the name `render_featured_collections` is defined multiple times: `render_featured_collections` redefined here
+crates/software-center/src/main.rs:1013:1: [1m[91merror[E0428][0m: the name `start_featured_collections_load` is defined multiple times: `start_featured_collections_load` redefined here
+crates/software-center/src/main.rs:1054:1: [1m[91merror[E0428][0m: the name `render_featured_collections` is defined multiple times: `render_featured_collections` redefined here
+[1m[91merror[0m: could not compile `genixbit-software-center` (bin "genixbit-software-center") due to 6 previous errors
+[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
+[1m[91merror[0m: could not compile `genixbit-software-center` (bin "genixbit-software-center" test) due to 6 previous errors
