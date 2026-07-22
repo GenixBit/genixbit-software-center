@@ -326,6 +326,37 @@ impl PackageManager {
         Ok(completed)
     }
 
+    async fn run_next_simulation(
+        &self,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> zbus::fdo::Result<TransactionRecord> {
+        self.authorization
+            .authorize_transaction_control("running a simulated package transaction")?;
+
+        let (running, running_event) = self
+            .transactions
+            .begin_next_simulation()
+            .map_err(dbus_failed)?;
+        Self::emit_lifecycle_event(&emitter, &running_event).await;
+
+        let (_, progress_event) = self
+            .transactions
+            .update_simulation_progress(
+                running.id,
+                5_000,
+                "Replaying the stored APT simulation; no package command is running",
+            )
+            .map_err(dbus_failed)?;
+        Self::emit_lifecycle_event(&emitter, &progress_event).await;
+
+        let (completed, completed_event) = self
+            .transactions
+            .complete_simulation(running.id)
+            .map_err(dbus_failed)?;
+        Self::emit_lifecycle_event(&emitter, &completed_event).await;
+        Ok(completed)
+    }
+
     async fn transaction_queue(&self) -> zbus::fdo::Result<TransactionQueueSnapshot> {
         self.transactions.snapshot().map_err(dbus_failed)
     }
