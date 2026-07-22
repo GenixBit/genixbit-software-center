@@ -18,12 +18,13 @@
 - [x] Local AppStream catalogue search
 - [x] Installed packages page
 - [x] Updates page
-- [x] Basic AppStream search page
-- [x] Basic system health summary
-- [ ] Package detail page
-- [ ] Installed-package search and filtering
-- [ ] AppStream categories and featured collections
-- [ ] Package origin and repository trust details
+- [x] AppStream search page
+- [x] System health dashboard
+- [x] Package detail window
+- [x] Installed-package search and Debian-section filtering
+- [x] AppStream category metadata and result filtering
+- [x] Package origin, candidate version and update status
+- [ ] Featured AppStream collections
 - [ ] Pagination or virtualized lists for large installations
 
 ## Phase 2 — Transaction framework
