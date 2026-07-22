@@ -4,6 +4,16 @@ use anyhow::{Context, bail};
 use genixbit_package_model::AppRecord;
 use tokio::process::Command;
 
+pub async fn is_available() -> bool {
+    Command::new("appstreamcli")
+        .arg("--version")
+        .env("LC_ALL", "C")
+        .kill_on_drop(true)
+        .output()
+        .await
+        .is_ok_and(|output| output.status.success())
+}
+
 pub async fn search(
     query: &str,
     installed_packages: &HashSet<String>,
@@ -71,6 +81,7 @@ pub fn parse_search(input: &str, installed_packages: &HashSet<String>) -> Vec<Ap
             "Package" => record.package = value.to_owned(),
             "Icon" => record.icon = value.to_owned(),
             "Homepage" => record.homepage = value.to_owned(),
+            "Categories" => record.categories = parse_categories(value),
             _ => {}
         }
     }
@@ -93,6 +104,18 @@ pub fn parse_search(input: &str, installed_packages: &HashSet<String>) -> Vec<Ap
         })
         .take(100)
         .collect()
+}
+
+fn parse_categories(value: &str) -> Vec<String> {
+    let mut categories = value
+        .split([';', ','])
+        .map(str::trim)
+        .filter(|category| !category.is_empty())
+        .map(ToOwned::to_owned)
+        .collect::<Vec<_>>();
+    categories.sort();
+    categories.dedup();
+    categories
 }
 
 fn parse_identifier(value: &str) -> (String, String) {
@@ -118,7 +141,7 @@ fn validate_query(query: &str) -> anyhow::Result<()> {
 mod tests {
     use std::collections::HashSet;
 
-    use super::{parse_search, validate_query};
+    use super::{parse_categories, parse_search, validate_query};
 
     #[test]
     fn parses_appstream_search_results() {
@@ -128,12 +151,14 @@ Summary: An IDE for GNOME
 Package: gnome-builder
 Homepage: https://apps.gnome.org/Builder/
 Icon: org.gnome.Builder
+Categories: Development;IDE;
 
 Identifier: org.gnome.TextEditor.desktop [desktop-application]
 Name: Text Editor
 Summary: A simple text editor
 Package: gnome-text-editor
 Icon: org.gnome.TextEditor
+Categories: Utility;TextEditor;
 "#;
         let installed = HashSet::from(["gnome-builder".to_owned()]);
         let records = parse_search(input, &installed);
@@ -141,8 +166,17 @@ Icon: org.gnome.TextEditor
         assert_eq!(records.len(), 2);
         assert_eq!(records[0].id, "org.gnome.Builder.desktop");
         assert_eq!(records[0].kind, "desktop-application");
+        assert_eq!(records[0].categories, ["Development", "IDE"]);
         assert!(records[0].installed);
         assert!(!records[1].installed);
+    }
+
+    #[test]
+    fn normalizes_category_lists() {
+        assert_eq!(
+            parse_categories("Utility; Development, Utility"),
+            ["Development", "Utility"]
+        );
     }
 
     #[test]
