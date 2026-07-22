@@ -19,16 +19,58 @@ pub async fn is_available() -> bool {
 
 pub fn featured_collections() -> Vec<FeaturedCollection> {
     vec![
-        collection("developer-tools", "Developer Tools", "IDEs, editors and software-development utilities.", "development", "applications-development-symbolic"),
-        collection("creative-studio", "Creative Studio", "Graphics, photography, animation and design applications.", "graphics", "applications-graphics-symbolic"),
-        collection("office-productivity", "Office & Productivity", "Writing, spreadsheets, planning and document tools.", "office", "x-office-document-symbolic"),
-        collection("audio-video", "Audio & Video", "Media players, recording, editing and production software.", "multimedia", "applications-multimedia-symbolic"),
-        collection("education-science", "Education & Science", "Learning, research, mathematics and scientific tools.", "science", "applications-science-symbolic"),
-        collection("system-utilities", "System Utilities", "Monitoring, storage, networking and maintenance tools.", "system", "applications-system-symbolic"),
+        collection(
+            "developer-tools",
+            "Developer Tools",
+            "IDEs, editors and software-development utilities.",
+            "development",
+            "applications-development-symbolic",
+        ),
+        collection(
+            "creative-studio",
+            "Creative Studio",
+            "Graphics, photography, animation and design applications.",
+            "graphics",
+            "applications-graphics-symbolic",
+        ),
+        collection(
+            "office-productivity",
+            "Office & Productivity",
+            "Writing, spreadsheets, planning and document tools.",
+            "office",
+            "x-office-document-symbolic",
+        ),
+        collection(
+            "audio-video",
+            "Audio & Video",
+            "Media players, recording, editing and production software.",
+            "multimedia",
+            "applications-multimedia-symbolic",
+        ),
+        collection(
+            "education-science",
+            "Education & Science",
+            "Learning, research, mathematics and scientific tools.",
+            "science",
+            "applications-science-symbolic",
+        ),
+        collection(
+            "system-utilities",
+            "System Utilities",
+            "Monitoring, storage, networking and maintenance tools.",
+            "system",
+            "applications-system-symbolic",
+        ),
     ]
 }
 
-fn collection(id: &str, title: &str, description: &str, query: &str, icon: &str) -> FeaturedCollection {
+fn collection(
+    id: &str,
+    title: &str,
+    description: &str,
+    query: &str,
+    icon: &str,
+) -> FeaturedCollection {
     FeaturedCollection {
         id: id.to_owned(),
         title: title.to_owned(),
@@ -79,7 +121,9 @@ pub async fn search_page(
 
 pub fn paginate(records: Vec<AppRecord>, offset: u64, limit: u64) -> CatalogPage {
     let total = records.len() as u64;
-    let start = usize::try_from(offset).unwrap_or(usize::MAX).min(records.len());
+    let start = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(records.len());
     let end = start
         .saturating_add(usize::try_from(limit).unwrap_or(usize::MAX))
         .min(records.len());
@@ -200,7 +244,10 @@ mod tests {
 
     use genixbit_package_model::AppRecord;
 
-    use super::{featured_collections, paginate, parse_categories, parse_search, validate_page, validate_query};
+    use super::{
+        featured_collections, paginate, parse_categories, parse_search, validate_page,
+        validate_query,
+    };
 
     #[test]
     fn parses_appstream_search_results() {
@@ -233,7 +280,10 @@ Categories: Utility;TextEditor;
     #[test]
     fn paginates_catalogue_results() {
         let records = (0..5)
-            .map(|index| AppRecord { name: format!("App {index}"), ..AppRecord::default() })
+            .map(|index| AppRecord {
+                name: format!("App {index}"),
+                ..AppRecord::default()
+            })
             .collect();
         let page = paginate(records, 2, 2);
         assert_eq!(page.total, 5);
@@ -246,7 +296,11 @@ Categories: Utility;TextEditor;
     fn exposes_stable_featured_collections() {
         let collections = featured_collections();
         assert!(collections.len() >= 6);
-        assert!(collections.iter().all(|item| !item.id.is_empty() && !item.query.is_empty()));
+        assert!(
+            collections
+                .iter()
+                .all(|item| !item.id.is_empty() && !item.query.is_empty())
+        );
     }
 
     #[test]

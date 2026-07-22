@@ -71,7 +71,11 @@ pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<AppRecord>> {
         .context("failed to search the AppStream catalogue")
 }
 
-pub async fn search_catalog_page(query: &str, offset: u64, limit: u64) -> anyhow::Result<CatalogPage> {
+pub async fn search_catalog_page(
+    query: &str,
+    offset: u64,
+    limit: u64,
+) -> anyhow::Result<CatalogPage> {
     let connection = connect().await?;
     let proxy = PackageManagerProxy::new(&connection)
         .await
