@@ -1,14 +1,20 @@
 mod appstream;
 mod apt;
+mod authorization;
 mod dpkg;
+mod journal;
+mod transaction;
 
 use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::Context;
+use authorization::AuthorizationHelper;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, UpdateRecord,
+    SystemSnapshot, TransactionPreview, TransactionQueueSnapshot, TransactionRecord, UpdateRecord,
 };
+use journal::TransactionJournal;
+use transaction::TransactionManager;
 use zbus::{connection, interface};
 
 const BUS_NAME: &str = "com.genixbit.PackageManager1";
@@ -19,6 +25,8 @@ const REBOOT_REQUIRED_PATH: &str = "/var/run/reboot-required";
 #[derive(Debug)]
 struct PackageManager {
     dpkg_status_path: PathBuf,
+    authorization: AuthorizationHelper,
+    transactions: TransactionManager,
 }
 
 impl Default for PackageManager {
@@ -26,7 +34,11 @@ impl Default for PackageManager {
         let dpkg_status_path = std::env::var_os("GENIXPKGD_DPKG_STATUS")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(DEFAULT_DPKG_STATUS));
-        Self { dpkg_status_path }
+        Self {
+            dpkg_status_path,
+            authorization: AuthorizationHelper::from_environment(),
+            transactions: TransactionManager::new(TransactionJournal::from_environment()),
+        }
     }
 }
 
@@ -92,6 +104,43 @@ impl PackageManager {
             updates,
             health,
         })
+    }
+
+    async fn preview_package_transaction(
+        &self,
+        kind: &str,
+        package: &str,
+    ) -> zbus::fdo::Result<TransactionPreview> {
+        validate_package_name(package)?;
+        let policy = apt::package_policy(package).await.map_err(dbus_failed)?;
+        let installed = normalized_version(&policy.installed_version);
+        let candidate = normalized_version(&policy.candidate_version);
+
+        match kind {
+            "install" if candidate.is_empty() => {
+                return Err(zbus::fdo::Error::InvalidArgs(format!(
+                    "no install candidate is available for {package}"
+                )));
+            }
+            "remove" if installed.is_empty() => {
+                return Err(zbus::fdo::Error::InvalidArgs(format!(
+                    "{package} is not installed"
+                )));
+            }
+            "upgrade" if !policy.upgradable => {
+                return Err(zbus::fdo::Error::InvalidArgs(format!(
+                    "no upgrade is available for {package}"
+                )));
+            }
+            _ => {}
+        }
+
+        let summary = format!(
+            "Preview complete for {kind} {package}. Dependency, download-size and disk-space simulation will be added before package execution is enabled."
+        );
+        self.transactions
+            .create_preview(kind, package, &installed, &candidate, summary)
+            .map_err(dbus_failed)
     }
 }
 
@@ -160,17 +209,60 @@ impl PackageManager {
             .map_err(dbus_failed)
     }
 
+    async fn preview_install(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
+        self.preview_package_transaction("install", package).await
+    }
+
+    async fn preview_remove(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
+        self.preview_package_transaction("remove", package).await
+    }
+
+    async fn preview_upgrade(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
+        self.preview_package_transaction("upgrade", package).await
+    }
+
+    async fn queue_transaction(&self, preview_id: u64) -> zbus::fdo::Result<TransactionRecord> {
+        self.authorization
+            .authorize_transaction_control("queueing a package transaction")?;
+        self.transactions
+            .queue_preview(preview_id)
+            .map_err(dbus_failed)
+    }
+
+    async fn cancel_transaction(
+        &self,
+        transaction_id: u64,
+    ) -> zbus::fdo::Result<TransactionRecord> {
+        self.authorization
+            .authorize_transaction_control("cancelling a package transaction")?;
+        self.transactions.cancel(transaction_id).map_err(dbus_failed)
+    }
+
+    async fn transaction_queue(&self) -> zbus::fdo::Result<TransactionQueueSnapshot> {
+        self.transactions.snapshot().map_err(dbus_failed)
+    }
+
+    async fn transaction_journal(&self) -> zbus::fdo::Result<Vec<TransactionRecord>> {
+        self.transactions.journal().map_err(dbus_failed)
+    }
+
+    async fn transaction_journal_path(&self) -> String {
+        self.transactions.journal_path().display().to_string()
+    }
+
     async fn install(&self, package: &str) -> zbus::fdo::Result<String> {
         validate_package_name(package)?;
         Err(zbus::fdo::Error::NotSupported(
-            "APT transactions are not enabled in the read-only release".to_owned(),
+            "direct APT execution is disabled; use a reviewed preview and protected transaction flow in a future milestone"
+                .to_owned(),
         ))
     }
 
     async fn remove(&self, package: &str) -> zbus::fdo::Result<String> {
         validate_package_name(package)?;
         Err(zbus::fdo::Error::NotSupported(
-            "APT transactions are not enabled in the read-only release".to_owned(),
+            "direct APT execution is disabled; use a reviewed preview and protected transaction flow in a future milestone"
+                .to_owned(),
         ))
     }
 }
@@ -207,6 +299,13 @@ fn dbus_failed(error: impl std::fmt::Display) -> zbus::fdo::Error {
     zbus::fdo::Error::Failed(error.to_string())
 }
 
+fn normalized_version(version: &str) -> String {
+    match version.trim() {
+        "" | "(none)" => String::new(),
+        value => value.to_owned(),
+    }
+}
+
 fn validate_package_name(package: &str) -> zbus::fdo::Result<()> {
     let valid = !package.is_empty()
         && package.len() <= 128
@@ -225,7 +324,7 @@ fn validate_package_name(package: &str) -> zbus::fdo::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::validate_package_name;
+    use super::{normalized_version, validate_package_name};
 
     #[test]
     fn accepts_debian_package_names() {
@@ -239,5 +338,11 @@ mod tests {
         for value in ["", "../curl", "curl;reboot", "$(id)", "package name"] {
             assert!(validate_package_name(value).is_err(), "{value}");
         }
+    }
+
+    #[test]
+    fn normalizes_apt_none_versions() {
+        assert_eq!(normalized_version("(none)"), "");
+        assert_eq!(normalized_version(" 1.2.3 "), "1.2.3");
     }
 }
