@@ -5,6 +5,7 @@ mod apt_plan;
 mod apt_simulation;
 mod authorization;
 mod dpkg;
+mod event_journal;
 mod journal;
 mod simulation_control;
 mod transaction;
@@ -481,6 +482,10 @@ impl PackageManager {
         self.transactions
             .events(after_sequence, limit)
             .map_err(dbus_failed)
+    }
+
+    async fn transaction_event_journal_path(&self) -> String {
+        self.transactions.event_journal_path().display().to_string()
     }
 
     async fn transaction_journal(&self) -> zbus::fdo::Result<Vec<TransactionRecord>> {
