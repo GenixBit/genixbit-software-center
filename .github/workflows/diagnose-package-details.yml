@@ -1,0 +1,32 @@
+name: Diagnose package detail branch
+
+on:
+  push:
+    branches:
+      - feat/package-details-and-health
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/package-details-and-health
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Capture cargo check
+        run: cargo check --workspace --all-targets > ci-check.log 2>&1 || true
+      - name: Commit diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-check.log
+          git commit -m "chore: capture cargo check diagnostics"
+          git push origin HEAD:feat/package-details-and-health
