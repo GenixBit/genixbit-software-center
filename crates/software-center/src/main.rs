@@ -1,7 +1,6 @@
 mod client;
 
 use std::{
-    rc::Rc,
     sync::mpsc::{self, TryRecvError},
     thread,
     time::Duration,
