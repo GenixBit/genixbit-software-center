@@ -41,36 +41,28 @@ impl AuthorizationHelper {
             )));
         }
 
-        let proxy = Proxy::new(
-            connection,
-            POLKIT_SERVICE,
-            POLKIT_PATH,
-            POLKIT_INTERFACE,
-        )
-        .await
-        .map_err(policykit_error)?;
+        let proxy = Proxy::new(connection, POLKIT_SERVICE, POLKIT_PATH, POLKIT_INTERFACE)
+            .await
+            .map_err(policykit_error)?;
 
         let mut subject_details = HashMap::new();
         subject_details.insert("name", Value::from(sender.as_str()));
         let subject = ("system-bus-name", subject_details);
         let details = HashMap::<&str, &str>::new();
-        let (is_authorized, is_challenge, _result_details): (
-            bool,
-            bool,
-            HashMap<String, String>,
-        ) = proxy
-            .call(
-                "CheckAuthorization",
-                &(
-                    subject,
-                    TRANSACTION_CONTROL_ACTION,
-                    details,
-                    ALLOW_USER_INTERACTION,
-                    "",
-                ),
-            )
-            .await
-            .map_err(policykit_error)?;
+        let (is_authorized, is_challenge, _result_details): (bool, bool, HashMap<String, String>) =
+            proxy
+                .call(
+                    "CheckAuthorization",
+                    &(
+                        subject,
+                        TRANSACTION_CONTROL_ACTION,
+                        details,
+                        ALLOW_USER_INTERACTION,
+                        "",
+                    ),
+                )
+                .await
+                .map_err(policykit_error)?;
 
         if is_authorized {
             Ok(())
@@ -91,9 +83,7 @@ impl AuthorizationHelper {
 }
 
 fn policykit_error(error: impl std::fmt::Display) -> zbus::fdo::Error {
-    zbus::fdo::Error::AccessDenied(format!(
-        "PolicyKit authorization failed closed: {error}"
-    ))
+    zbus::fdo::Error::AccessDenied(format!("PolicyKit authorization failed closed: {error}"))
 }
 
 #[cfg(test)]
