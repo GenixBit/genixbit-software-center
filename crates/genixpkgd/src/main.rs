@@ -1,15 +1,18 @@
 mod appstream;
 mod apt;
+mod apt_live;
 mod apt_plan;
 mod apt_simulation;
 mod authorization;
 mod dpkg;
 mod journal;
+mod simulation_control;
 mod transaction;
 
 use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::Context;
+use apt_live::AptSimulationOutcome;
 use authorization::AuthorizationHelper;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
@@ -17,6 +20,7 @@ use genixbit_package_model::{
     TransactionRecord, UpdateRecord,
 };
 use journal::TransactionJournal;
+use simulation_control::SimulationControl;
 use transaction::TransactionManager;
 use zbus::{Connection, connection, interface, message::Header, object_server::SignalEmitter};
 
@@ -30,6 +34,7 @@ struct PackageManager {
     dpkg_status_path: PathBuf,
     authorization: AuthorizationHelper,
     transactions: TransactionManager,
+    simulation_control: SimulationControl,
 }
 
 impl Default for PackageManager {
@@ -41,6 +46,7 @@ impl Default for PackageManager {
             dpkg_status_path,
             authorization: AuthorizationHelper::from_environment(),
             transactions: TransactionManager::new(TransactionJournal::from_environment()),
+            simulation_control: SimulationControl::default(),
         }
     }
 }
@@ -300,6 +306,20 @@ impl PackageManager {
         self.authorization
             .authorize_transaction_control(connection, sender, "cancelling a package transaction")
             .await?;
+
+        if self.simulation_control.is_active(transaction_id).await {
+            self.simulation_control
+                .request(transaction_id)
+                .await
+                .map_err(dbus_failed)?;
+            let (record, event) = self
+                .transactions
+                .request_simulation_cancellation(transaction_id)
+                .map_err(dbus_failed)?;
+            Self::emit_lifecycle_event(&emitter, &event).await;
+            return Ok(record);
+        }
+
         let (record, event) = self
             .transactions
             .cancel(transaction_id)
@@ -331,8 +351,41 @@ impl PackageManager {
             .map_err(dbus_failed)?;
         Self::emit_lifecycle_event(&emitter, &running_event).await;
 
-        let simulation = match apt_simulation::simulate(&running.kind, &running.package).await {
-            Ok(simulation) => simulation,
+        let cancellation = match self.simulation_control.register(running.id).await {
+            Ok(cancellation) => cancellation,
+            Err(error) => {
+                let message = format!("failed to register simulation cancellation: {error}");
+                let (failed, failed_event) = self
+                    .transactions
+                    .fail_simulation(running.id, &message)
+                    .map_err(dbus_failed)?;
+                Self::emit_lifecycle_event(&emitter, &failed_event).await;
+                return Err(zbus::fdo::Error::Failed(failed.message));
+            }
+        };
+
+        let outcome =
+            apt_live::run_cancellable(&running.kind, &running.package, cancellation).await;
+        if let Err(error) = self.simulation_control.clear(running.id).await {
+            let message = format!("failed to clear simulation cancellation handle: {error}");
+            let (failed, failed_event) = self
+                .transactions
+                .fail_simulation(running.id, &message)
+                .map_err(dbus_failed)?;
+            Self::emit_lifecycle_event(&emitter, &failed_event).await;
+            return Err(zbus::fdo::Error::Failed(failed.message));
+        }
+
+        let simulation = match outcome {
+            Ok(AptSimulationOutcome::Completed(simulation)) => simulation,
+            Ok(AptSimulationOutcome::Cancelled) => {
+                let (cancelled, cancelled_event) = self
+                    .transactions
+                    .cancel_active_simulation(running.id)
+                    .map_err(dbus_failed)?;
+                Self::emit_lifecycle_event(&emitter, &cancelled_event).await;
+                return Ok(cancelled);
+            }
             Err(error) => {
                 let message = format!("APT simulation subprocess failed: {error}");
                 let (failed, failed_event) = self
