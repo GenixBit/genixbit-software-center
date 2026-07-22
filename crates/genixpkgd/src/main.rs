@@ -49,9 +49,8 @@ impl PackageManager {
         let status = self.dpkg_status().await?;
         let installed = dpkg::parse_status(&status);
         let status_metrics = dpkg::status_metrics(&status);
-        let update_result = apt::check_updates().await;
-        let apt_available = update_result.is_ok();
-        let updates = update_result.unwrap_or_default();
+        let apt_available = apt::is_available().await;
+        let updates = apt::check_updates().await.unwrap_or_default();
         let appstream_available = appstream::is_available().await;
 
         let mut update_sources = updates

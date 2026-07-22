@@ -500,14 +500,15 @@ fn render_health(ui: &UiState, health: &SystemHealth) {
             "Ready"
         },
     );
+    let update_origins = if health.update_sources.is_empty() {
+        "No update repositories currently represented".to_owned()
+    } else {
+        health.update_sources.join(", ")
+    };
     append_health_row(
         &ui.health_list,
         "Update origins",
-        if health.update_sources.is_empty() {
-            "No update repositories currently represented"
-        } else {
-            &health.update_sources.join(", ")
-        },
+        &update_origins,
         &format!("{} sources", health.update_sources.len()),
     );
 }
@@ -592,9 +593,9 @@ fn render_installed(ui: &UiState) {
             badge.add_css_class("accent");
             row.add_suffix(&badge);
         }
-        let ui = ui.clone();
+        let callback_ui = ui.clone();
         let package_name = package.name.clone();
-        row.connect_activated(move |_| start_package_details(&ui, &package_name));
+        row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
         ui.installed_list.append(&row);
     }
 }
@@ -629,9 +630,9 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
             badge.add_css_class("error");
             row.add_suffix(&badge);
         }
-        let ui = ui.clone();
+        let callback_ui = ui.clone();
         let package_name = update.name.clone();
-        row.connect_activated(move |_| start_package_details(&ui, &package_name));
+        row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
         ui.updates_list.append(&row);
     }
 }
