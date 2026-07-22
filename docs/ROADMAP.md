@@ -33,12 +33,13 @@ Phase 1 is feature-complete and keeps all package-changing operations disabled.
 
 ## Phase 2 — Transaction framework
 
-The foundation is active. Package execution remains disabled and protected transaction controls fail closed until caller-aware PolicyKit verification is connected.
+The protected transaction foundation is active. Caller-aware PolicyKit verification is connected, but real package execution remains disabled until the subprocess runner and active-cancellation rules are completed and tested.
 
 Foundation completed:
 
 - [x] Typed transaction preview, change, record, event and queue-snapshot models
 - [x] Fail-closed authorization boundary with an explicit session-test override
+- [x] Caller-aware PolicyKit authorization using the authenticated D-Bus sender
 - [x] Serialized pending queue with deterministic ordering
 - [x] Append-only transaction journal with persistence tests
 - [x] D-Bus preview, queue inspection, event history, journal inspection and cancellation APIs
@@ -48,14 +49,13 @@ Foundation completed:
 - [x] APT dependency, download-size and disk-space simulation
 - [x] Simulation-only active runner on the serialized queue
 - [x] Simulated running, progress and completion event emission
+- [x] Integration tests in a disposable Ubuntu container
 
 Remaining Phase 2 completion criteria:
 
-- [ ] Caller-aware PolicyKit authorization helper
 - [ ] Real package transaction runner on the serialized queue
 - [ ] Active package-manager subprocess progress and log parsing
 - [ ] Cancellation rules for active package-manager subprocesses
-- [ ] Integration tests in disposable containers or virtual machines
 
 ## Phase 3 — Safe APT operations
 

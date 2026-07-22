@@ -17,7 +17,7 @@ use genixbit_package_model::{
 };
 use journal::TransactionJournal;
 use transaction::TransactionManager;
-use zbus::{connection, interface, object_server::SignalEmitter};
+use zbus::{Connection, connection, interface, message::Header, object_server::SignalEmitter};
 
 const BUS_NAME: &str = "com.genixbit.PackageManager1";
 const OBJECT_PATH: &str = "/com/genixbit/PackageManager1";
@@ -268,10 +268,16 @@ impl PackageManager {
     async fn queue_transaction(
         &self,
         preview_id: u64,
+        #[zbus(connection)] connection: &Connection,
+        #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> zbus::fdo::Result<TransactionRecord> {
+        let sender = header.sender().ok_or_else(|| {
+            zbus::fdo::Error::AccessDenied("missing authenticated D-Bus caller identity".to_owned())
+        })?;
         self.authorization
-            .authorize_transaction_control("queueing a package transaction")?;
+            .authorize_transaction_control(connection, sender, "queueing a package transaction")
+            .await?;
         let (record, event) = self
             .transactions
             .queue_preview(preview_id)
@@ -283,10 +289,16 @@ impl PackageManager {
     async fn cancel_transaction(
         &self,
         transaction_id: u64,
+        #[zbus(connection)] connection: &Connection,
+        #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> zbus::fdo::Result<TransactionRecord> {
+        let sender = header.sender().ok_or_else(|| {
+            zbus::fdo::Error::AccessDenied("missing authenticated D-Bus caller identity".to_owned())
+        })?;
         self.authorization
-            .authorize_transaction_control("cancelling a package transaction")?;
+            .authorize_transaction_control(connection, sender, "cancelling a package transaction")
+            .await?;
         let (record, event) = self
             .transactions
             .cancel(transaction_id)
@@ -297,10 +309,20 @@ impl PackageManager {
 
     async fn run_next_simulation(
         &self,
+        #[zbus(connection)] connection: &Connection,
+        #[zbus(header)] header: Header<'_>,
         #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> zbus::fdo::Result<TransactionRecord> {
+        let sender = header.sender().ok_or_else(|| {
+            zbus::fdo::Error::AccessDenied("missing authenticated D-Bus caller identity".to_owned())
+        })?;
         self.authorization
-            .authorize_transaction_control("running a simulated package transaction")?;
+            .authorize_transaction_control(
+                connection,
+                sender,
+                "running a simulated package transaction",
+            )
+            .await?;
 
         let (running, running_event) = self
             .transactions
