@@ -6,7 +6,7 @@ on:
   pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   rust:
@@ -23,24 +23,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Capture merge-ref check result
+      - name: Capture merge-ref check
         run: |
           set +e
-          cargo check --workspace --all-targets --message-format=short > /tmp/ci-merge-check.log 2>&1
-          code=$?
-          printf '%s\n' "$code" > /tmp/ci-merge-check.exit
+          cargo check --workspace --all-targets --message-format=short > ci-merge-check.log 2>&1
+          printf '%s\n' "$?" > ci-merge-check.exit
           exit 0
-      - name: Persist merge-ref result
-        run: |
-          git fetch origin feat/gtk-featured-pagination
-          git switch feat/gtk-featured-pagination
-          cp /tmp/ci-merge-check.log ci-merge-check.log
-          cp /tmp/ci-merge-check.exit ci-merge-check.exit
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add ci-merge-check.log ci-merge-check.exit
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "chore: preserve PR merge compiler diagnostic"
-          git push origin HEAD:feat/gtk-featured-pagination
+      - uses: actions/upload-artifact@v4
+        with:
+          name: merge-compiler-diagnostic
+          path: |
+            ci-merge-check.log
+            ci-merge-check.exit
+          if-no-files-found: error
