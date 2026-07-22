@@ -314,9 +314,7 @@ mod tests {
         let (record, _) = manager
             .queue_preview(preview.id)
             .expect("preview should queue");
-        let (cancelled, event) = manager
-            .cancel(record.id)
-            .expect("queue item should cancel");
+        let (cancelled, event) = manager.cancel(record.id).expect("queue item should cancel");
 
         assert_eq!(cancelled.state, "cancelled");
         assert!(!cancelled.can_cancel);
