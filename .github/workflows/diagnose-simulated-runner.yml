@@ -1,21 +1,16 @@
 name: Diagnose simulated runner
 
 on:
-  push:
-    branches:
-      - feat/simulated-transaction-runner
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   diagnose:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: feat/simulated-transaction-runner
       - name: Install native dependencies
         run: |
           sudo apt-get update -qq
@@ -23,10 +18,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Capture compiler diagnostic
         run: cargo check --workspace --all-targets --message-format=short > check.log 2>&1 || true
-      - name: Commit diagnostic
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add check.log
-          git commit -m "chore: record simulated runner compiler diagnostic"
-          git push origin HEAD:feat/simulated-transaction-runner
+      - uses: actions/upload-artifact@v4
+        with:
+          name: simulated-runner-check
+          path: check.log
+          if-no-files-found: error
