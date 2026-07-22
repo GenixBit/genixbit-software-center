@@ -8,9 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use genixbit_package_model::{
-    TransactionPreview, TransactionQueueSnapshot, TransactionRecord,
-};
+use genixbit_package_model::{TransactionPreview, TransactionQueueSnapshot, TransactionRecord};
 
 use crate::journal::TransactionJournal;
 

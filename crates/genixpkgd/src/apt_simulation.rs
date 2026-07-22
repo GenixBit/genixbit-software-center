@@ -85,7 +85,10 @@ pub fn parse_simulation(input: &str) -> AptSimulation {
     }
 
     if result.summary.is_empty() {
-        result.summary = format!("APT simulation reports {} package changes", result.changes.len());
+        result.summary = format!(
+            "APT simulation reports {} package changes",
+            result.changes.len()
+        );
     }
     result
 }
@@ -137,9 +140,7 @@ fn parenthesized_value(line: &str) -> Option<String> {
 }
 
 fn looks_like_summary(line: &str) -> bool {
-    line.contains(" upgraded,")
-        && line.contains(" newly installed,")
-        && line.contains(" to remove")
+    line.contains(" upgraded,") && line.contains(" newly installed,") && line.contains(" to remove")
 }
 
 fn parse_size_bytes(value: &str) -> Option<u64> {
