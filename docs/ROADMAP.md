@@ -37,11 +37,13 @@ The foundation is active. Package execution remains disabled and protected trans
 
 Foundation completed:
 
-- [x] Typed transaction preview, change, record and queue-snapshot models
+- [x] Typed transaction preview, change, record, event and queue-snapshot models
 - [x] Fail-closed authorization boundary with an explicit session-test override
 - [x] Serialized pending queue with deterministic ordering
 - [x] Append-only transaction journal with persistence tests
-- [x] D-Bus preview, queue inspection, journal inspection and cancellation APIs
+- [x] D-Bus preview, queue inspection, event history, journal inspection and cancellation APIs
+- [x] Ordered D-Bus lifecycle signal for preview, queue and cancellation changes
+- [x] Bounded cursor-based transaction event history
 - [x] Install, remove and upgrade metadata previews without package execution
 - [x] APT dependency, download-size and disk-space simulation
 
@@ -49,7 +51,7 @@ Remaining Phase 2 completion criteria:
 
 - [ ] Caller-aware PolicyKit authorization helper
 - [ ] Active transaction runner on the serialized queue
-- [ ] D-Bus progress, log and completion signals
+- [ ] Active-run progress, log and completion event emission
 - [ ] Cancellation rules for active package-manager subprocesses
 - [ ] Integration tests in disposable containers or virtual machines
 
