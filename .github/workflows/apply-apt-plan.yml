@@ -35,11 +35,16 @@ jobs:
 
           simulation = Path('crates/genixpkgd/src/apt_simulation.rs')
           text = simulation.read_text()
+          text = text.replace(
+              'use anyhow::Context;\nuse genixbit_package_model::TransactionChange;',
+              'use anyhow::{Context, bail};\nuse genixbit_package_model::TransactionChange;',
+              1,
+          )
           old_imports = '''use anyhow::{Context, bail};
           use genixbit_package_model::TransactionChange;
           use tokio::process::Command;
           '''
-          new_imports = '''use anyhow::Context;
+          new_imports = '''use anyhow::{Context, bail};
           use genixbit_package_model::TransactionChange;
 
           use crate::apt_plan::AptCommandPlan;
