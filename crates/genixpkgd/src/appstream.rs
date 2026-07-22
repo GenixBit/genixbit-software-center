@@ -86,8 +86,8 @@ pub fn parse_search(input: &str, installed_packages: &HashSet<String>) -> Vec<Ap
             if record.id.is_empty() || record.name.is_empty() {
                 return None;
             }
-            record.installed = !record.package.is_empty()
-                && installed_packages.contains(record.package.as_str());
+            record.installed =
+                !record.package.is_empty() && installed_packages.contains(record.package.as_str());
             let key = format!("{}\0{}", record.id, record.package);
             seen.insert(key).then_some(record)
         })
@@ -105,9 +105,8 @@ fn parse_identifier(value: &str) -> (String, String) {
 }
 
 fn validate_query(query: &str) -> anyhow::Result<()> {
-    let valid = !query.trim().is_empty()
-        && query.len() <= 100
-        && !query.chars().any(char::is_control);
+    let valid =
+        !query.trim().is_empty() && query.len() <= 100 && !query.chars().any(char::is_control);
     if valid {
         Ok(())
     } else {

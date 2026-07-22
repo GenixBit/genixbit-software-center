@@ -235,7 +235,10 @@ fn build_discover_page() -> (
     (page, entry, button, status, list)
 }
 
-fn build_list_page(title_text: &str, description_text: &str) -> (gtk::Box, gtk::Label, gtk::ListBox) {
+fn build_list_page(
+    title_text: &str,
+    description_text: &str,
+) -> (gtk::Box, gtk::Label, gtk::ListBox) {
     let page = gtk::Box::new(gtk::Orientation::Vertical, 12);
     page.set_margin_top(24);
     page.set_margin_bottom(24);
@@ -276,7 +279,8 @@ fn start_snapshot_load(ui: &UiState) {
     ui.dashboard
         .set_description(Some("Connecting to the GenixBit package service…"));
     ui.installed_status.set_text("Loading installed packages…");
-    ui.updates_status.set_text("Checking for available updates…");
+    ui.updates_status
+        .set_text("Checking for available updates…");
 
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
