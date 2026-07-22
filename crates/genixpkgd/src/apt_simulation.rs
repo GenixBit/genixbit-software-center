@@ -15,13 +15,18 @@ pub async fn simulate(kind: &str, package: &str) -> anyhow::Result<AptSimulation
     let plan = AptCommandPlan::simulation(kind, package)?;
     let mut command = plan.command()?;
 
-    let output = command
-        .output()
-        .await
-        .with_context(|| format!("failed to run APT {kind} simulation for {package}"))?;
+    let output = command.output().await.with_context(|| {
+        format!(
+            "failed to run APT {} simulation for {}",
+            plan.operation(),
+            plan.package()
+        )
+    })?;
     if !output.status.success() {
         bail!(
-            "APT {kind} simulation failed for {package}: {}",
+            "APT {} simulation failed for {}: {}",
+            plan.operation(),
+            plan.package(),
             String::from_utf8_lossy(&output.stderr).trim()
         );
     }

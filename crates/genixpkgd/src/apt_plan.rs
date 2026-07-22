@@ -63,6 +63,7 @@ impl AptCommandPlan {
         &self.package
     }
 
+    #[cfg(test)]
     pub fn arguments(&self) -> &[String] {
         &self.arguments
     }
