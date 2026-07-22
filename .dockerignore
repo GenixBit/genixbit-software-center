@@ -1,0 +1,7 @@
+.git
+.github
+.target
+target
+*.log
+*.zip
+.DS_Store
