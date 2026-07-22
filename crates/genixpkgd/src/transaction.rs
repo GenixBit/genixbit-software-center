@@ -178,6 +178,12 @@ impl TransactionManager {
         if record.state != STATE_RUNNING {
             bail!("transaction {transaction_id} is not running");
         }
+        if progress_basis_points <= record.progress_basis_points {
+            bail!(
+                "simulation progress must advance beyond {} basis points",
+                record.progress_basis_points
+            );
+        }
         record.progress_basis_points = progress_basis_points;
         record.updated_unix_ms = now_unix_ms();
         record.message = message.to_owned();
@@ -586,6 +592,16 @@ mod tests {
             .expect("progress should update");
         assert_eq!(progress.progress_basis_points, 5_000);
         assert_eq!(progress_event.event, "progress");
+        assert!(
+            manager
+                .update_simulation_progress(running.id, 5_000, "duplicate")
+                .is_err()
+        );
+        assert!(
+            manager
+                .update_simulation_progress(running.id, 4_000, "regression")
+                .is_err()
+        );
 
         let (completed, completed_event) = manager
             .complete_simulation(running.id)
