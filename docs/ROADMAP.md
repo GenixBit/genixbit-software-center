@@ -24,8 +24,10 @@
 - [x] Installed-package search and Debian-section filtering
 - [x] AppStream category metadata and result filtering
 - [x] Package origin, candidate version and update status
-- [ ] Featured AppStream collections
-- [ ] Pagination or virtualized lists for large installations
+- [x] Featured AppStream collection metadata and D-Bus API
+- [x] Bounded paginated AppStream service and client API
+- [ ] Featured collection browser in GTK
+- [ ] Pagination or virtualized lists in GTK for large result sets
 
 ## Phase 2 — Transaction framework
 
