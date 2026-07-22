@@ -21,6 +21,7 @@ const STATE_PREVIEWED: &str = "previewed";
 const STATE_QUEUED: &str = "queued";
 const STATE_RUNNING: &str = "running";
 const STATE_COMPLETED: &str = "completed";
+const STATE_FAILED: &str = "failed";
 const STATE_CANCELLED: &str = "cancelled";
 const MAX_EVENT_HISTORY: usize = 500;
 
@@ -113,7 +114,9 @@ impl TransactionManager {
         Ok((record, event))
     }
 
-    pub fn begin_next_simulation(&self) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
+    pub fn begin_next_simulation(
+        &self,
+    ) -> anyhow::Result<(TransactionRecord, TransactionPreview, TransactionEvent)> {
         let mut state = self
             .state
             .lock()
@@ -130,12 +133,17 @@ impl TransactionManager {
             .get(&transaction_id)
             .cloned()
             .with_context(|| format!("transaction {transaction_id} was not found"))?;
+        let preview = state
+            .previews
+            .get(&record.preview_id)
+            .cloned()
+            .with_context(|| format!("transaction preview {} was not found", record.preview_id))?;
         record.state = STATE_RUNNING.to_owned();
         record.progress_basis_points = 1_000;
         record.can_cancel = false;
         record.updated_unix_ms = now_unix_ms();
         record.message =
-            "Simulation runner started; no package command will be executed".to_owned();
+            "APT simulation subprocess started; package mutation remains disabled".to_owned();
         let event = self.record_event("running", &record, "info");
 
         self.journal.append(&record)?;
@@ -143,7 +151,7 @@ impl TransactionManager {
         state.active = Some(transaction_id);
         state.records.insert(transaction_id, record.clone());
         push_event(&mut state.events, event.clone());
-        Ok((record, event))
+        Ok((record, preview, event))
     }
 
     pub fn update_simulation_progress(
@@ -206,6 +214,39 @@ impl TransactionManager {
         record.updated_unix_ms = now_unix_ms();
         record.message = "Simulation completed successfully; no packages were changed".to_owned();
         let event = self.record_event("completed", &record, "info");
+
+        self.journal.append(&record)?;
+        state.active = None;
+        state.records.insert(transaction_id, record.clone());
+        push_event(&mut state.events, event.clone());
+        Ok((record, event))
+    }
+
+    pub fn fail_simulation(
+        &self,
+        transaction_id: u64,
+        message: &str,
+    ) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
+        if state.active != Some(transaction_id) {
+            bail!("transaction {transaction_id} is not the active simulation");
+        }
+        let mut record = state
+            .records
+            .get(&transaction_id)
+            .cloned()
+            .with_context(|| format!("transaction {transaction_id} was not found"))?;
+        if record.state != STATE_RUNNING {
+            bail!("transaction {transaction_id} is not running");
+        }
+        record.state = STATE_FAILED.to_owned();
+        record.can_cancel = false;
+        record.updated_unix_ms = now_unix_ms();
+        record.message = message.to_owned();
+        let event = self.record_event("failed", &record, "error");
 
         self.journal.append(&record)?;
         state.active = None;
@@ -429,7 +470,7 @@ mod tests {
             .queue_preview(second.id)
             .expect("preview should queue");
 
-        let (running, running_event) = manager
+        let (running, reviewed_preview, running_event) = manager
             .begin_next_simulation()
             .expect("simulation should start");
         let active_snapshot = manager.snapshot().expect("snapshot should load");
@@ -437,6 +478,7 @@ mod tests {
         assert_eq!(active_snapshot.active.id, first_record.id);
         assert_eq!(active_snapshot.queued.len(), 1);
         assert_eq!(running.state, "running");
+        assert_eq!(reviewed_preview.id, first.id);
         assert_eq!(running_event.event, "running");
         assert!(manager.begin_next_simulation().is_err());
 
@@ -455,6 +497,29 @@ mod tests {
         let completed_snapshot = manager.snapshot().expect("snapshot should load");
         assert!(!completed_snapshot.has_active);
         assert_eq!(completed_snapshot.queued.len(), 1);
+        fs::remove_file(path).expect("test journal should be removable");
+    }
+
+    #[test]
+    fn failed_simulation_releases_the_active_slot() {
+        let (manager, path) = manager();
+        let (preview, _) = manager
+            .create_preview(preview("install", "curl"))
+            .expect("preview should be created");
+        let (record, _) = manager
+            .queue_preview(preview.id)
+            .expect("preview should queue");
+        manager
+            .begin_next_simulation()
+            .expect("simulation should start");
+
+        let (failed, event) = manager
+            .fail_simulation(record.id, "APT simulation failed")
+            .expect("simulation should fail cleanly");
+        assert_eq!(failed.state, "failed");
+        assert_eq!(event.event, "failed");
+        assert_eq!(event.level, "error");
+        assert!(!manager.snapshot().expect("snapshot should load").has_active);
         fs::remove_file(path).expect("test journal should be removable");
     }
 

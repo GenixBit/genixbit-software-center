@@ -325,19 +325,42 @@ impl PackageManager {
             )
             .await?;
 
-        let (running, running_event) = self
+        let (running, reviewed_preview, running_event) = self
             .transactions
             .begin_next_simulation()
             .map_err(dbus_failed)?;
         Self::emit_lifecycle_event(&emitter, &running_event).await;
 
+        let simulation = match apt_simulation::simulate(&running.kind, &running.package).await {
+            Ok(simulation) => simulation,
+            Err(error) => {
+                let message = format!("APT simulation subprocess failed: {error}");
+                let (failed, failed_event) = self
+                    .transactions
+                    .fail_simulation(running.id, &message)
+                    .map_err(dbus_failed)?;
+                Self::emit_lifecycle_event(&emitter, &failed_event).await;
+                return Err(zbus::fdo::Error::Failed(failed.message));
+            }
+        };
+
+        let preview_changed = simulation.changes != reviewed_preview.changes
+            || simulation.download_size_bytes != reviewed_preview.download_size_bytes
+            || simulation.installed_size_delta_bytes != reviewed_preview.installed_size_delta_bytes;
+        if preview_changed {
+            let message = "APT simulation changed since review; create and approve a new preview";
+            let (failed, failed_event) = self
+                .transactions
+                .fail_simulation(running.id, message)
+                .map_err(dbus_failed)?;
+            Self::emit_lifecycle_event(&emitter, &failed_event).await;
+            return Err(zbus::fdo::Error::Failed(failed.message));
+        }
+
+        let progress_message = format!("APT simulation verified: {}", simulation.summary);
         let (_, progress_event) = self
             .transactions
-            .update_simulation_progress(
-                running.id,
-                5_000,
-                "Replaying the stored APT simulation; no package command is running",
-            )
+            .update_simulation_progress(running.id, 9_000, &progress_message)
             .map_err(dbus_failed)?;
         Self::emit_lifecycle_event(&emitter, &progress_event).await;
 
