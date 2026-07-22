@@ -1,7 +1,7 @@
 mod client;
 
 use std::{
-    cell::RefCell,
+    cell::{Cell, RefCell},
     collections::BTreeSet,
     rc::Rc,
     sync::mpsc::{self, TryRecvError},
@@ -11,12 +11,14 @@ use std::{
 
 use adw::prelude::*;
 use genixbit_package_model::{
-    AppRecord, PackageDetailRecord, PackageRecord, SystemHealth, SystemSnapshot, UpdateRecord,
+    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
+    SystemSnapshot, UpdateRecord,
 };
 use gtk::glib;
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
-const MAX_VISIBLE_PACKAGES: usize = 750;
+const CATALOG_PAGE_SIZE: u64 = 25;
+const INSTALLED_PAGE_SIZE: usize = 100;
 
 #[derive(Clone)]
 struct UiState {
@@ -27,14 +29,26 @@ struct UiState {
     installed_section: gtk::DropDown,
     installed_status: gtk::Label,
     installed_list: gtk::ListBox,
+    installed_previous: gtk::Button,
+    installed_next: gtk::Button,
+    installed_page_status: gtk::Label,
     updates_status: gtk::Label,
     updates_list: gtk::ListBox,
     discover_entry: gtk::SearchEntry,
     discover_category: gtk::DropDown,
     discover_status: gtk::Label,
     discover_list: gtk::ListBox,
+    discover_collections: gtk::ListBox,
+    discover_previous: gtk::Button,
+    discover_next: gtk::Button,
+    discover_page_status: gtk::Label,
     packages: Rc<RefCell<Vec<PackageRecord>>>,
     apps: Rc<RefCell<Vec<AppRecord>>>,
+    installed_offset: Rc<Cell<usize>>,
+    catalog_query: Rc<RefCell<String>>,
+    catalog_offset: Rc<Cell<u64>>,
+    catalog_total: Rc<Cell<u64>>,
+    catalog_has_more: Rc<Cell<bool>>,
 }
 
 fn main() -> glib::ExitCode {
@@ -85,6 +99,10 @@ fn build_ui(application: &adw::Application) {
         discover_category,
         discover_status,
         discover_list,
+        discover_collections,
+        discover_previous,
+        discover_next,
+        discover_page_status,
     ) = build_discover_page();
     add_widget_page(
         &stack,
@@ -94,8 +112,16 @@ fn build_ui(application: &adw::Application) {
         &discover_page,
     );
 
-    let (installed_page, installed_entry, installed_section, installed_status, installed_list) =
-        build_installed_page();
+    let (
+        installed_page,
+        installed_entry,
+        installed_section,
+        installed_status,
+        installed_list,
+        installed_previous,
+        installed_next,
+        installed_page_status,
+    ) = build_installed_page();
     add_widget_page(
         &stack,
         "installed",
@@ -180,14 +206,26 @@ fn build_ui(application: &adw::Application) {
         installed_section,
         installed_status,
         installed_list,
+        installed_previous,
+        installed_next,
+        installed_page_status,
         updates_status,
         updates_list,
         discover_entry,
         discover_category,
         discover_status,
         discover_list,
+        discover_collections,
+        discover_previous,
+        discover_next,
+        discover_page_status,
         packages: Rc::new(RefCell::new(Vec::new())),
         apps: Rc::new(RefCell::new(Vec::new())),
+        installed_offset: Rc::new(Cell::new(0)),
+        catalog_query: Rc::new(RefCell::new(String::new())),
+        catalog_offset: Rc::new(Cell::new(0)),
+        catalog_total: Rc::new(Cell::new(0)),
+        catalog_has_more: Rc::new(Cell::new(false)),
     };
 
     {
@@ -206,15 +244,39 @@ fn build_ui(application: &adw::Application) {
     }
     {
         let ui = ui.clone();
-        ui.installed_entry
-            .clone()
-            .connect_changed(move |_| render_installed(&ui));
+        ui.installed_entry.clone().connect_changed(move |_| {
+            ui.installed_offset.set(0);
+            render_installed(&ui);
+        });
     }
     {
         let ui = ui.clone();
         ui.installed_section
             .clone()
-            .connect_selected_notify(move |_| render_installed(&ui));
+            .connect_selected_notify(move |_| {
+                ui.installed_offset.set(0);
+                render_installed(&ui);
+            });
+    }
+    {
+        let ui = ui.clone();
+        ui.installed_previous.clone().connect_clicked(move |_| {
+            let offset = ui.installed_offset.get();
+            ui.installed_offset
+                .set(offset.saturating_sub(INSTALLED_PAGE_SIZE));
+            render_installed(&ui);
+        });
+    }
+    {
+        let ui = ui.clone();
+        ui.installed_next.clone().connect_clicked(move |_| {
+            ui.installed_offset.set(
+                ui.installed_offset
+                    .get()
+                    .saturating_add(INSTALLED_PAGE_SIZE),
+            );
+            render_installed(&ui);
+        });
     }
     {
         let ui = ui.clone();
@@ -222,8 +284,29 @@ fn build_ui(application: &adw::Application) {
             .clone()
             .connect_selected_notify(move |_| render_catalog(&ui));
     }
+    {
+        let ui = ui.clone();
+        ui.discover_previous.clone().connect_clicked(move |_| {
+            let query = ui.catalog_query.borrow().clone();
+            if !query.is_empty() {
+                let offset = ui.catalog_offset.get().saturating_sub(CATALOG_PAGE_SIZE);
+                start_catalog_page(&ui, query, offset);
+            }
+        });
+    }
+    {
+        let ui = ui.clone();
+        ui.discover_next.clone().connect_clicked(move |_| {
+            let query = ui.catalog_query.borrow().clone();
+            if !query.is_empty() && ui.catalog_has_more.get() {
+                let offset = ui.catalog_offset.get().saturating_add(CATALOG_PAGE_SIZE);
+                start_catalog_page(&ui, query, offset);
+            }
+        });
+    }
 
     start_snapshot_load(&ui);
+    start_featured_collections_load(&ui);
     window.present();
 }
 
@@ -254,6 +337,9 @@ fn build_installed_page() -> (
     gtk::DropDown,
     gtk::Label,
     gtk::ListBox,
+    gtk::Button,
+    gtk::Button,
+    gtk::Label,
 ) {
     let page = page_box();
     append_page_heading(
@@ -288,7 +374,29 @@ fn build_installed_page() -> (
         .build();
     page.append(&scrolled);
 
-    (page, entry, section, status, list)
+    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let previous = gtk::Button::with_label("Previous");
+    previous.set_sensitive(false);
+    let page_status = gtk::Label::new(Some("Page 1"));
+    page_status.set_hexpand(true);
+    page_status.set_xalign(0.5);
+    let next = gtk::Button::with_label("Next");
+    next.set_sensitive(false);
+    navigation.append(&previous);
+    navigation.append(&page_status);
+    navigation.append(&next);
+    page.append(&navigation);
+
+    (
+        page,
+        entry,
+        section,
+        status,
+        list,
+        previous,
+        next,
+        page_status,
+    )
 }
 
 fn build_discover_page() -> (
@@ -298,13 +406,32 @@ fn build_discover_page() -> (
     gtk::DropDown,
     gtk::Label,
     gtk::ListBox,
+    gtk::ListBox,
+    gtk::Button,
+    gtk::Button,
+    gtk::Label,
 ) {
     let page = page_box();
     append_page_heading(
         &page,
         "Discover software",
-        "Search verified application metadata from the local AppStream catalogue.",
+        "Browse curated collections or search verified application metadata from the local AppStream catalogue.",
     );
+
+    let collections_title = gtk::Label::new(Some("Featured collections"));
+    collections_title.set_xalign(0.0);
+    collections_title.add_css_class("title-3");
+    page.append(&collections_title);
+
+    let collections = gtk::ListBox::new();
+    collections.set_selection_mode(gtk::SelectionMode::None);
+    collections.add_css_class("boxed-list");
+    let loading = adw::ActionRow::builder()
+        .title("Loading featured collections…")
+        .subtitle("Reading curated AppStream collection metadata")
+        .build();
+    collections.append(&loading);
+    page.append(&collections);
 
     let search_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
     let entry = gtk::SearchEntry::builder()
@@ -317,11 +444,11 @@ fn build_discover_page() -> (
     page.append(&search_row);
 
     let category = gtk::DropDown::from_strings(&["All categories"]);
-    category.set_tooltip_text(Some("Filter the current search by AppStream category"));
+    category.set_tooltip_text(Some("Filter the current page by AppStream category"));
     category.set_sensitive(false);
     page.append(&category);
 
-    let status = gtk::Label::new(Some("Enter a search term to browse AppStream."));
+    let status = gtk::Label::new(Some("Choose a collection or enter a search term."));
     status.set_xalign(0.0);
     status.set_wrap(true);
     page.append(&status);
@@ -336,7 +463,31 @@ fn build_discover_page() -> (
         .build();
     page.append(&scrolled);
 
-    (page, entry, button, category, status, list)
+    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let previous = gtk::Button::with_label("Previous");
+    previous.set_sensitive(false);
+    let page_status = gtk::Label::new(Some("No catalogue page loaded"));
+    page_status.set_hexpand(true);
+    page_status.set_xalign(0.5);
+    let next = gtk::Button::with_label("Next");
+    next.set_sensitive(false);
+    navigation.append(&previous);
+    navigation.append(&page_status);
+    navigation.append(&next);
+    page.append(&navigation);
+
+    (
+        page,
+        entry,
+        button,
+        category,
+        status,
+        list,
+        collections,
+        previous,
+        next,
+        page_status,
+    )
 }
 
 fn build_list_page(
@@ -556,15 +707,39 @@ fn render_installed(ui: &UiState) {
             query_matches && section_matches
         })
         .collect::<Vec<_>>();
-    let visible = filtered.len().min(MAX_VISIBLE_PACKAGES);
-    ui.installed_status.set_text(&format!(
-        "{} matching packages. Showing {} of {} installed.",
-        filtered.len(),
-        visible,
-        packages.len()
-    ));
 
-    for package in filtered.into_iter().take(MAX_VISIBLE_PACKAGES) {
+    let total = filtered.len();
+    let mut offset = ui.installed_offset.get();
+    if total == 0 {
+        offset = 0;
+    } else if offset >= total {
+        offset = ((total - 1) / INSTALLED_PAGE_SIZE) * INSTALLED_PAGE_SIZE;
+    }
+    ui.installed_offset.set(offset);
+    let end = offset.saturating_add(INSTALLED_PAGE_SIZE).min(total);
+
+    if total == 0 {
+        ui.installed_status
+            .set_text("No installed packages match the current filters.");
+        ui.installed_page_status.set_text("No results");
+    } else {
+        ui.installed_status.set_text(&format!(
+            "{} matching packages. Showing {}–{} of {} installed.",
+            total,
+            offset + 1,
+            end,
+            packages.len()
+        ));
+        ui.installed_page_status.set_text(&format!(
+            "Page {} of {}",
+            offset / INSTALLED_PAGE_SIZE + 1,
+            total.div_ceil(INSTALLED_PAGE_SIZE)
+        ));
+    }
+    ui.installed_previous.set_sensitive(offset > 0);
+    ui.installed_next.set_sensitive(end < total);
+
+    for package in filtered[offset..end].iter().copied() {
         let details = format!(
             "{} · {} · {}{}",
             package.version,
@@ -637,6 +812,72 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
     }
 }
 
+fn start_featured_collections_load(ui: &UiState) {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(anyhow::Error::from)
+            .and_then(|runtime| runtime.block_on(client::featured_collections()));
+        let _ = sender.send(result);
+    });
+
+    let ui = ui.clone();
+    glib::timeout_add_local(Duration::from_millis(100), move || {
+        match receiver.try_recv() {
+            Ok(Ok(collections)) => {
+                render_featured_collections(&ui, &collections);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                clear_list(&ui.discover_collections);
+                let row = adw::ActionRow::builder()
+                    .title("Featured collections unavailable")
+                    .subtitle(error.to_string())
+                    .build();
+                ui.discover_collections.append(&row);
+                glib::ControlFlow::Break
+            }
+            Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(TryRecvError::Disconnected) => {
+                clear_list(&ui.discover_collections);
+                let row = adw::ActionRow::builder()
+                    .title("Featured collection worker stopped")
+                    .subtitle("Restart the software center and try again")
+                    .build();
+                ui.discover_collections.append(&row);
+                glib::ControlFlow::Break
+            }
+        }
+    });
+}
+
+fn render_featured_collections(ui: &UiState, collections: &[FeaturedCollection]) {
+    clear_list(&ui.discover_collections);
+    for collection in collections {
+        let row = adw::ActionRow::builder()
+            .title(&collection.title)
+            .subtitle(&collection.description)
+            .activatable(true)
+            .build();
+        let image = gtk::Image::from_icon_name(&collection.icon);
+        row.add_prefix(&image);
+        if !collection.category.is_empty() {
+            let category = gtk::Label::new(Some(&collection.category));
+            category.add_css_class("dim-label");
+            row.add_suffix(&category);
+        }
+        let callback_ui = ui.clone();
+        let query = collection.query.clone();
+        row.connect_activated(move |_| {
+            callback_ui.discover_entry.set_text(&query);
+            start_catalog_page(&callback_ui, query.clone(), 0);
+        });
+        ui.discover_collections.append(&row);
+    }
+}
+
 fn start_catalog_search(ui: &UiState) {
     let query = ui.discover_entry.text().trim().to_owned();
     if query.is_empty() {
@@ -644,44 +885,68 @@ fn start_catalog_search(ui: &UiState) {
             .set_text("Enter a search term before searching.");
         return;
     }
+    start_catalog_page(ui, query, 0);
+}
 
+fn start_catalog_page(ui: &UiState, query: String, offset: u64) {
     clear_list(&ui.discover_list);
     ui.discover_category.set_sensitive(false);
-    ui.discover_status
-        .set_text(&format!("Searching AppStream for “{query}”…"));
+    ui.discover_previous.set_sensitive(false);
+    ui.discover_next.set_sensitive(false);
+    ui.discover_status.set_text(&format!(
+        "Searching AppStream for “{query}” from result {}…",
+        offset + 1
+    ));
 
+    let worker_query = query.clone();
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(anyhow::Error::from)
-            .and_then(|runtime| runtime.block_on(client::search_catalog(&query)));
+            .and_then(|runtime| {
+                runtime.block_on(client::search_catalog_page(
+                    &worker_query,
+                    offset,
+                    CATALOG_PAGE_SIZE,
+                ))
+            });
         let _ = sender.send(result);
     });
 
     let ui = ui.clone();
     glib::timeout_add_local(Duration::from_millis(100), move || {
         match receiver.try_recv() {
-            Ok(Ok(apps)) => {
-                *ui.apps.borrow_mut() = apps;
-                populate_catalog_categories(&ui);
-                render_catalog(&ui);
+            Ok(Ok(page)) => {
+                *ui.catalog_query.borrow_mut() = query.clone();
+                render_catalog_page(&ui, page);
                 glib::ControlFlow::Break
             }
             Ok(Err(error)) => {
                 ui.discover_status
                     .set_text(&format!("AppStream search failed: {error}"));
+                ui.discover_page_status.set_text("Search failed");
                 glib::ControlFlow::Break
             }
             Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
             Err(TryRecvError::Disconnected) => {
                 ui.discover_status
                     .set_text("The AppStream search worker stopped unexpectedly.");
+                ui.discover_page_status.set_text("Search stopped");
                 glib::ControlFlow::Break
             }
         }
     });
+}
+
+fn render_catalog_page(ui: &UiState, page: CatalogPage) {
+    ui.catalog_offset.set(page.offset);
+    ui.catalog_total.set(page.total);
+    ui.catalog_has_more.set(page.has_more);
+    *ui.apps.borrow_mut() = page.applications;
+    populate_catalog_categories(ui);
+    render_catalog(ui);
 }
 
 fn populate_catalog_categories(ui: &UiState) {
@@ -711,11 +976,28 @@ fn render_catalog(ui: &UiState) {
                 || app.categories.iter().any(|value| value == &category)
         })
         .collect::<Vec<_>>();
-    ui.discover_status.set_text(&format!(
-        "{} matching applications from {} AppStream results.",
-        filtered.len(),
-        apps.len()
-    ));
+    let offset = ui.catalog_offset.get();
+    let total = ui.catalog_total.get();
+    let page_end = offset.saturating_add(apps.len() as u64).min(total);
+
+    if apps.is_empty() {
+        ui.discover_status
+            .set_text("No AppStream applications matched this query.");
+        ui.discover_page_status.set_text("No results");
+    } else {
+        ui.discover_status.set_text(&format!(
+            "{} applications on this page match the current category filter.",
+            filtered.len()
+        ));
+        ui.discover_page_status.set_text(&format!(
+            "Showing {}–{} of {}",
+            offset + 1,
+            page_end,
+            total
+        ));
+    }
+    ui.discover_previous.set_sensitive(offset > 0);
+    ui.discover_next.set_sensitive(ui.catalog_has_more.get());
 
     for app in filtered {
         let category_text = app.categories.join(", ");
@@ -729,6 +1011,10 @@ fn render_catalog(ui: &UiState) {
             .subtitle(&subtitle)
             .activatable(!app.package.is_empty())
             .build();
+        if !app.icon.is_empty() {
+            let image = gtk::Image::from_icon_name(&app.icon);
+            row.add_prefix(&image);
+        }
         let metadata = if category_text.is_empty() {
             app.package.clone()
         } else {
@@ -743,9 +1029,9 @@ fn render_catalog(ui: &UiState) {
             row.add_suffix(&badge);
         }
         if !app.package.is_empty() {
-            let ui = ui.clone();
+            let callback_ui = ui.clone();
             let package_name = app.package.clone();
-            row.connect_activated(move |_| start_package_details(&ui, &package_name));
+            row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
         }
         ui.discover_list.append(&row);
     }

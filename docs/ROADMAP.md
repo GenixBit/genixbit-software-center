@@ -26,8 +26,8 @@
 - [x] Package origin, candidate version and update status
 - [x] Featured AppStream collection metadata and D-Bus API
 - [x] Bounded paginated AppStream service and client API
-- [ ] Featured collection browser in GTK
-- [ ] Pagination or virtualized lists in GTK for large result sets
+- [x] Featured collection browser in GTK
+- [x] Pagination or virtualized lists in GTK for large result sets
 
 ## Phase 2 — Transaction framework
 

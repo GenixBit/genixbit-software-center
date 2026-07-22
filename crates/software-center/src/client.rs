@@ -49,7 +49,6 @@ pub async fn package_details(package: &str) -> anyhow::Result<PackageDetailRecor
         .context("failed to load package details")
 }
 
-#[allow(dead_code)]
 pub async fn featured_collections() -> anyhow::Result<Vec<FeaturedCollection>> {
     let connection = connect().await?;
     let proxy = PackageManagerProxy::new(&connection)
@@ -72,7 +71,6 @@ pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<AppRecord>> {
         .context("failed to search the AppStream catalogue")
 }
 
-#[allow(dead_code)]
 pub async fn search_catalog_page(
     query: &str,
     offset: u64,
