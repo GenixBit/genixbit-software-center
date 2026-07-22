@@ -5,12 +5,15 @@ mod dpkg;
 use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::Context;
-use genixbit_package_model::{AppRecord, PackageRecord, UpdateRecord};
+use genixbit_package_model::{
+    AppRecord, PackageDetailRecord, PackageRecord, SystemHealth, SystemSnapshot, UpdateRecord,
+};
 use zbus::{connection, interface};
 
 const BUS_NAME: &str = "com.genixbit.PackageManager1";
 const OBJECT_PATH: &str = "/com/genixbit/PackageManager1";
 const DEFAULT_DPKG_STATUS: &str = "/var/lib/dpkg/status";
+const REBOOT_REQUIRED_PATH: &str = "/var/run/reboot-required";
 
 #[derive(Debug)]
 struct PackageManager {
@@ -27,16 +30,58 @@ impl Default for PackageManager {
 }
 
 impl PackageManager {
-    async fn installed_packages(&self) -> anyhow::Result<Vec<PackageRecord>> {
-        let status = tokio::fs::read_to_string(&self.dpkg_status_path)
+    async fn dpkg_status(&self) -> anyhow::Result<String> {
+        tokio::fs::read_to_string(&self.dpkg_status_path)
             .await
             .with_context(|| {
                 format!(
                     "failed to read dpkg status from {}",
                     self.dpkg_status_path.display()
                 )
-            })?;
-        Ok(dpkg::parse_status(&status))
+            })
+    }
+
+    async fn installed_packages(&self) -> anyhow::Result<Vec<PackageRecord>> {
+        Ok(dpkg::parse_status(&self.dpkg_status().await?))
+    }
+
+    async fn snapshot(&self) -> anyhow::Result<SystemSnapshot> {
+        let status = self.dpkg_status().await?;
+        let installed = dpkg::parse_status(&status);
+        let status_metrics = dpkg::status_metrics(&status);
+        let apt_available = apt::is_available().await;
+        let updates = apt::check_updates().await.unwrap_or_default();
+        let appstream_available = appstream::is_available().await;
+
+        let mut update_sources = updates
+            .iter()
+            .map(|update| update.source.clone())
+            .collect::<Vec<_>>();
+        update_sources.sort();
+        update_sources.dedup();
+
+        let health = SystemHealth {
+            dpkg_status_readable: true,
+            apt_available,
+            appstream_available,
+            reboot_required: std::path::Path::new(REBOOT_REQUIRED_PATH).exists(),
+            installed_count: installed.len() as u64,
+            installed_size_kib: installed
+                .iter()
+                .map(|package| package.installed_size_kib)
+                .sum(),
+            essential_count: installed.iter().filter(|package| package.essential).count() as u64,
+            broken_package_count: status_metrics.broken_package_count,
+            update_count: updates.len() as u64,
+            security_update_count: updates.iter().filter(|update| update.security).count() as u64,
+            update_sources,
+        };
+
+        Ok(SystemSnapshot {
+            installed,
+            updates,
+            health,
+        })
     }
 }
 
@@ -46,12 +91,40 @@ impl PackageManager {
         env!("CARGO_PKG_VERSION").to_owned()
     }
 
+    async fn system_snapshot(&self) -> zbus::fdo::Result<SystemSnapshot> {
+        self.snapshot().await.map_err(dbus_failed)
+    }
+
+    async fn system_health(&self) -> zbus::fdo::Result<SystemHealth> {
+        self.snapshot()
+            .await
+            .map(|snapshot| snapshot.health)
+            .map_err(dbus_failed)
+    }
+
     async fn list_installed(&self) -> zbus::fdo::Result<Vec<PackageRecord>> {
         self.installed_packages().await.map_err(dbus_failed)
     }
 
     async fn check_updates(&self) -> zbus::fdo::Result<Vec<UpdateRecord>> {
         apt::check_updates().await.map_err(dbus_failed)
+    }
+
+    async fn package_details(&self, package: &str) -> zbus::fdo::Result<PackageDetailRecord> {
+        validate_package_name(package)?;
+        let status = self.dpkg_status().await.map_err(dbus_failed)?;
+        let mut details = dpkg::package_details(&status, package);
+        if !details.found {
+            return Ok(details);
+        }
+
+        if let Ok(policy) = apt::package_policy(package).await {
+            details.candidate_version = policy.candidate_version;
+            details.origin = policy.origin;
+            details.upgradable = policy.upgradable;
+            details.security_update = policy.security_update;
+        }
+        Ok(details)
     }
 
     async fn search_catalog(&self, query: &str) -> zbus::fdo::Result<Vec<AppRecord>> {

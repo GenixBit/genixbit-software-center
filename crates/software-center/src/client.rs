@@ -1,5 +1,7 @@
 use anyhow::Context;
-use genixbit_package_model::{AppRecord, PackageRecord, SystemSnapshot, UpdateRecord};
+use genixbit_package_model::{
+    AppRecord, PackageDetailRecord, PackageRecord, SystemHealth, SystemSnapshot, UpdateRecord,
+};
 use zbus::{Connection, proxy};
 
 #[proxy(
@@ -9,8 +11,11 @@ use zbus::{Connection, proxy};
 )]
 trait PackageManager {
     async fn version(&self) -> zbus::Result<String>;
+    async fn system_snapshot(&self) -> zbus::Result<SystemSnapshot>;
+    async fn system_health(&self) -> zbus::Result<SystemHealth>;
     async fn list_installed(&self) -> zbus::Result<Vec<PackageRecord>>;
     async fn check_updates(&self) -> zbus::Result<Vec<UpdateRecord>>;
+    async fn package_details(&self, package: &str) -> zbus::Result<PackageDetailRecord>;
     async fn search_catalog(&self, query: &str) -> zbus::Result<Vec<AppRecord>>;
 }
 
@@ -19,17 +24,21 @@ pub async fn load_snapshot() -> anyhow::Result<SystemSnapshot> {
     let proxy = PackageManagerProxy::new(&connection)
         .await
         .context("failed to create package-manager proxy")?;
-
-    let installed = proxy
-        .list_installed()
+    proxy
+        .system_snapshot()
         .await
-        .context("failed to load installed packages")?;
-    let updates = proxy
-        .check_updates()
-        .await
-        .context("failed to check for package updates")?;
+        .context("failed to load the system package snapshot")
+}
 
-    Ok(SystemSnapshot { installed, updates })
+pub async fn package_details(package: &str) -> anyhow::Result<PackageDetailRecord> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .package_details(package)
+        .await
+        .context("failed to load package details")
 }
 
 pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<AppRecord>> {

@@ -1,18 +1,69 @@
 use std::collections::BTreeMap;
 
-use genixbit_package_model::PackageRecord;
+use genixbit_package_model::{PackageDetailRecord, PackageRecord};
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct StatusMetrics {
+    pub broken_package_count: u64,
+}
 
 pub fn parse_status(input: &str) -> Vec<PackageRecord> {
-    let mut packages = Vec::new();
+    let mut packages = parse_paragraphs(input)
+        .into_iter()
+        .filter_map(|fields| package_from_fields(&fields))
+        .collect::<Vec<_>>();
+    packages.sort_by(|left, right| left.name.cmp(&right.name));
+    packages
+}
+
+pub fn package_details(input: &str, package_name: &str) -> PackageDetailRecord {
+    parse_paragraphs(input)
+        .into_iter()
+        .find(|fields| {
+            fields
+                .get("Package")
+                .is_some_and(|name| name == package_name)
+                && fields
+                    .get("Status")
+                    .is_some_and(|status| status == "install ok installed")
+        })
+        .map(|fields| details_from_fields(&fields))
+        .unwrap_or_else(|| PackageDetailRecord {
+            name: package_name.to_owned(),
+            ..PackageDetailRecord::default()
+        })
+}
+
+pub fn status_metrics(input: &str) -> StatusMetrics {
+    let broken_package_count = parse_paragraphs(input)
+        .into_iter()
+        .filter(|fields| {
+            let Some(status) = fields.get("Status") else {
+                return false;
+            };
+            status != "install ok installed"
+                && (status.contains("half-configured")
+                    || status.contains("half-installed")
+                    || status.contains("unpacked")
+                    || status.contains("triggers-pending"))
+        })
+        .count() as u64;
+
+    StatusMetrics {
+        broken_package_count,
+    }
+}
+
+fn parse_paragraphs(input: &str) -> Vec<BTreeMap<String, String>> {
+    let mut paragraphs = Vec::new();
     let mut fields = BTreeMap::<String, String>::new();
     let mut current_key: Option<String> = None;
 
     for line in input.lines().chain(std::iter::once("")) {
         if line.trim().is_empty() {
-            if let Some(package) = package_from_fields(&fields) {
-                packages.push(package);
+            if !fields.is_empty() {
+                paragraphs.push(std::mem::take(&mut fields));
             }
-            fields.clear();
             current_key = None;
             continue;
         }
@@ -34,8 +85,7 @@ pub fn parse_status(input: &str) -> Vec<PackageRecord> {
         }
     }
 
-    packages.sort_by(|left, right| left.name.cmp(&right.name));
-    packages
+    paragraphs
 }
 
 fn package_from_fields(fields: &BTreeMap<String, String>) -> Option<PackageRecord> {
@@ -45,24 +95,17 @@ fn package_from_fields(fields: &BTreeMap<String, String>) -> Option<PackageRecor
     }
 
     let name = fields.get("Package")?.to_owned();
-    let summary = fields
-        .get("Description")
-        .and_then(|value| value.lines().next())
-        .unwrap_or_default()
-        .to_owned();
+    let description = fields.get("Description").cloned().unwrap_or_default();
 
     Some(PackageRecord {
         name,
-        version: fields.get("Version").cloned().unwrap_or_default(),
-        architecture: fields.get("Architecture").cloned().unwrap_or_default(),
-        summary,
-        section: fields.get("Section").cloned().unwrap_or_default(),
-        installed_size_kib: fields
-            .get("Installed-Size")
-            .and_then(|value| value.parse().ok())
-            .unwrap_or_default(),
+        version: field(fields, "Version"),
+        architecture: field(fields, "Architecture"),
+        summary: first_line(&description),
+        section: field(fields, "Section"),
+        installed_size_kib: installed_size(fields),
         essential: fields.get("Essential").is_some_and(|value| value == "yes"),
-        priority: fields.get("Priority").cloned().unwrap_or_default(),
+        priority: field(fields, "Priority"),
         source: fields
             .get("Source")
             .cloned()
@@ -70,9 +113,60 @@ fn package_from_fields(fields: &BTreeMap<String, String>) -> Option<PackageRecor
     })
 }
 
+fn details_from_fields(fields: &BTreeMap<String, String>) -> PackageDetailRecord {
+    let description = field(fields, "Description");
+    PackageDetailRecord {
+        found: true,
+        name: field(fields, "Package"),
+        version: field(fields, "Version"),
+        architecture: field(fields, "Architecture"),
+        summary: first_line(&description),
+        description,
+        section: field(fields, "Section"),
+        installed_size_kib: installed_size(fields),
+        essential: fields.get("Essential").is_some_and(|value| value == "yes"),
+        priority: field(fields, "Priority"),
+        source: fields
+            .get("Source")
+            .cloned()
+            .unwrap_or_else(|| "dpkg".to_owned()),
+        maintainer: field(fields, "Maintainer"),
+        homepage: field(fields, "Homepage"),
+        depends: parse_relationships(fields.get("Depends")),
+        recommends: parse_relationships(fields.get("Recommends")),
+        suggests: parse_relationships(fields.get("Suggests")),
+        ..PackageDetailRecord::default()
+    }
+}
+
+fn field(fields: &BTreeMap<String, String>, key: &str) -> String {
+    fields.get(key).cloned().unwrap_or_default()
+}
+
+fn first_line(value: &str) -> String {
+    value.lines().next().unwrap_or_default().to_owned()
+}
+
+fn installed_size(fields: &BTreeMap<String, String>) -> u64 {
+    fields
+        .get("Installed-Size")
+        .and_then(|value| value.parse().ok())
+        .unwrap_or_default()
+}
+
+fn parse_relationships(value: Option<&String>) -> Vec<String> {
+    value
+        .into_iter()
+        .flat_map(|value| value.split(','))
+        .map(str::trim)
+        .filter(|dependency| !dependency.is_empty())
+        .map(ToOwned::to_owned)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
-    use super::parse_status;
+    use super::{package_details, parse_status, status_metrics};
 
     const STATUS: &str = r#"Package: bash
 Status: install ok installed
@@ -82,6 +176,10 @@ Installed-Size: 7336
 Essential: yes
 Architecture: amd64
 Version: 5.2.21-2ubuntu4
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Homepage: https://www.gnu.org/software/bash/
+Depends: base-files (>= 2.1.12), libc6 (>= 2.38)
+Recommends: bash-completion
 Description: GNU Bourne Again SHell
  Bash is an sh-compatible command language interpreter.
 
@@ -90,6 +188,12 @@ Status: deinstall ok config-files
 Architecture: amd64
 Version: 1.0
 Description: should not be returned
+
+Package: interrupted-package
+Status: install ok half-configured
+Architecture: amd64
+Version: 2.0
+Description: requires repair
 
 Package: curl
 Status: install ok installed
@@ -118,5 +222,30 @@ Description: command line tool for transferring data with URL syntax
         assert_eq!(bash.installed_size_kib, 7336);
         assert!(bash.essential);
         assert_eq!(bash.summary, "GNU Bourne Again SHell");
+    }
+
+    #[test]
+    fn returns_detailed_package_metadata() {
+        let details = package_details(STATUS, "bash");
+        assert!(details.found);
+        assert_eq!(
+            details.maintainer,
+            "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+        );
+        assert_eq!(details.depends.len(), 2);
+        assert_eq!(details.recommends, ["bash-completion"]);
+        assert!(details.description.contains("sh-compatible"));
+    }
+
+    #[test]
+    fn reports_missing_packages_without_guessing() {
+        let details = package_details(STATUS, "does-not-exist");
+        assert!(!details.found);
+        assert_eq!(details.name, "does-not-exist");
+    }
+
+    #[test]
+    fn counts_interrupted_package_states() {
+        assert_eq!(status_metrics(STATUS).broken_package_count, 1);
     }
 }
