@@ -1,4 +1,4 @@
-name: Diagnose GTK Activity page
+name: Fix GTK Activity duplicate declarations
 
 on:
   pull_request:
@@ -6,21 +6,50 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  diagnose:
+  fix:
+    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
-      - uses: dtolnay/rust-toolchain@stable
-      - run: cargo check --workspace --all-targets --message-format=short > check.log 2>&1 || true
-      - uses: actions/upload-artifact@v4
         with:
-          name: gtk-activity-check
-          path: check.log
-          if-no-files-found: error
+          ref: feat/gtk-transaction-activity-page
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Remove duplicated Activity declarations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('crates/software-center/src/main.rs')
+          text = path.read_text()
+          replacements = [
+              (
+                  'const ACTIVITY_LIMIT: u64 = 100;\nconst ACTIVITY_LIMIT: u64 = 100;\n',
+                  'const ACTIVITY_LIMIT: u64 = 100;\n',
+              ),
+              (
+                  '    activity_status: gtk::Label,\n    activity_list: gtk::ListBox,\n    activity_status: gtk::Label,\n    activity_list: gtk::ListBox,\n',
+                  '    activity_status: gtk::Label,\n    activity_list: gtk::ListBox,\n',
+              ),
+              (
+                  '        activity_status,\n        activity_list,\n        activity_status,\n        activity_list,\n',
+                  '        activity_status,\n        activity_list,\n',
+              ),
+          ]
+          for old, new in replacements:
+              if old not in text:
+                  raise SystemExit(f'duplicate marker not found: {old!r}')
+              text = text.replace(old, new, 1)
+          path.write_text(text)
+          PY
+          cargo fmt --all
+      - name: Commit duplicate cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/software-center/src/main.rs
+          git commit -m "fix(gtk): deduplicate Activity page state"
+          git push origin HEAD:feat/gtk-transaction-activity-page
