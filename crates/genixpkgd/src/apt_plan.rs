@@ -69,9 +69,12 @@ impl AptCommandPlan {
 }
 
 fn validate_package_name(package: &str) -> anyhow::Result<()> {
-    let valid = !package.is_empty()
-        && package.len() <= 128
-        && package.chars().all(|character| {
+    let mut characters = package.chars();
+    let valid = package.len() <= 128
+        && characters
+            .next()
+            .is_some_and(|character| character.is_ascii_alphanumeric())
+        && characters.all(|character| {
             character.is_ascii_alphanumeric() || matches!(character, '+' | '-' | '.' | ':')
         });
     ensure!(valid, "invalid Debian package name");
