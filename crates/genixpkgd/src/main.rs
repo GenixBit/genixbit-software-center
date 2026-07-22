@@ -12,11 +12,12 @@ use anyhow::Context;
 use authorization::AuthorizationHelper;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, TransactionPreview, TransactionQueueSnapshot, TransactionRecord, UpdateRecord,
+    SystemSnapshot, TransactionEvent, TransactionPreview, TransactionQueueSnapshot,
+    TransactionRecord, UpdateRecord,
 };
 use journal::TransactionJournal;
 use transaction::TransactionManager;
-use zbus::{connection, interface};
+use zbus::{connection, interface, object_server::SignalEmitter};
 
 const BUS_NAME: &str = "com.genixbit.PackageManager1";
 const OBJECT_PATH: &str = "/com/genixbit/PackageManager1";
@@ -111,7 +112,7 @@ impl PackageManager {
         &self,
         kind: &str,
         package: &str,
-    ) -> zbus::fdo::Result<TransactionPreview> {
+    ) -> zbus::fdo::Result<(TransactionPreview, TransactionEvent)> {
         validate_package_name(package)?;
         let policy = apt::package_policy(package).await.map_err(dbus_failed)?;
         let installed = normalized_version(&policy.installed_version);
@@ -155,6 +156,17 @@ impl PackageManager {
                 ),
             })
             .map_err(dbus_failed)
+    }
+
+    async fn emit_lifecycle_event(emitter: &SignalEmitter<'_>, event: &TransactionEvent) {
+        if let Err(error) = emitter.transaction_event(event).await {
+            tracing::warn!(
+                sequence = event.sequence,
+                transaction_id = event.transaction_id,
+                %error,
+                "failed to emit transaction lifecycle signal"
+            );
+        }
     }
 }
 
@@ -223,39 +235,78 @@ impl PackageManager {
             .map_err(dbus_failed)
     }
 
-    async fn preview_install(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
-        self.preview_package_transaction("install", package).await
+    async fn preview_install(
+        &self,
+        package: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> zbus::fdo::Result<TransactionPreview> {
+        let (preview, event) = self.preview_package_transaction("install", package).await?;
+        Self::emit_lifecycle_event(&emitter, &event).await;
+        Ok(preview)
     }
 
-    async fn preview_remove(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
-        self.preview_package_transaction("remove", package).await
+    async fn preview_remove(
+        &self,
+        package: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> zbus::fdo::Result<TransactionPreview> {
+        let (preview, event) = self.preview_package_transaction("remove", package).await?;
+        Self::emit_lifecycle_event(&emitter, &event).await;
+        Ok(preview)
     }
 
-    async fn preview_upgrade(&self, package: &str) -> zbus::fdo::Result<TransactionPreview> {
-        self.preview_package_transaction("upgrade", package).await
+    async fn preview_upgrade(
+        &self,
+        package: &str,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> zbus::fdo::Result<TransactionPreview> {
+        let (preview, event) = self.preview_package_transaction("upgrade", package).await?;
+        Self::emit_lifecycle_event(&emitter, &event).await;
+        Ok(preview)
     }
 
-    async fn queue_transaction(&self, preview_id: u64) -> zbus::fdo::Result<TransactionRecord> {
+    async fn queue_transaction(
+        &self,
+        preview_id: u64,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
+    ) -> zbus::fdo::Result<TransactionRecord> {
         self.authorization
             .authorize_transaction_control("queueing a package transaction")?;
-        self.transactions
+        let (record, event) = self
+            .transactions
             .queue_preview(preview_id)
-            .map_err(dbus_failed)
+            .map_err(dbus_failed)?;
+        Self::emit_lifecycle_event(&emitter, &event).await;
+        Ok(record)
     }
 
     async fn cancel_transaction(
         &self,
         transaction_id: u64,
+        #[zbus(signal_emitter)] emitter: SignalEmitter<'_>,
     ) -> zbus::fdo::Result<TransactionRecord> {
         self.authorization
             .authorize_transaction_control("cancelling a package transaction")?;
-        self.transactions
+        let (record, event) = self
+            .transactions
             .cancel(transaction_id)
-            .map_err(dbus_failed)
+            .map_err(dbus_failed)?;
+        Self::emit_lifecycle_event(&emitter, &event).await;
+        Ok(record)
     }
 
     async fn transaction_queue(&self) -> zbus::fdo::Result<TransactionQueueSnapshot> {
         self.transactions.snapshot().map_err(dbus_failed)
+    }
+
+    async fn transaction_events(
+        &self,
+        after_sequence: u64,
+        limit: u64,
+    ) -> zbus::fdo::Result<Vec<TransactionEvent>> {
+        self.transactions
+            .events(after_sequence, limit)
+            .map_err(dbus_failed)
     }
 
     async fn transaction_journal(&self) -> zbus::fdo::Result<Vec<TransactionRecord>> {
@@ -281,6 +332,12 @@ impl PackageManager {
                 .to_owned(),
         ))
     }
+
+    #[zbus(signal)]
+    async fn transaction_event(
+        signal_emitter: &SignalEmitter<'_>,
+        event: &TransactionEvent,
+    ) -> zbus::Result<()>;
 }
 
 #[tokio::main]
