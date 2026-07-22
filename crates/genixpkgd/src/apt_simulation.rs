@@ -1,6 +1,7 @@
 use anyhow::{Context, bail};
 use genixbit_package_model::TransactionChange;
-use tokio::process::Command;
+
+use crate::apt_plan::AptCommandPlan;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AptSimulation {
@@ -11,33 +12,21 @@ pub struct AptSimulation {
 }
 
 pub async fn simulate(kind: &str, package: &str) -> anyhow::Result<AptSimulation> {
-    let mut command = Command::new("apt-get");
-    command
-        .arg("--simulate")
-        .env("LC_ALL", "C")
-        .env("DEBIAN_FRONTEND", "noninteractive")
-        .kill_on_drop(true);
+    let plan = AptCommandPlan::simulation(kind, package)?;
+    let mut command = plan.command()?;
 
-    match kind {
-        "install" => {
-            command.arg("install").arg(package);
-        }
-        "remove" => {
-            command.arg("remove").arg(package);
-        }
-        "upgrade" => {
-            command.args(["install", "--only-upgrade", package]);
-        }
-        _ => bail!("unsupported APT simulation kind {kind}"),
-    }
-
-    let output = command
-        .output()
-        .await
-        .with_context(|| format!("failed to run APT {kind} simulation for {package}"))?;
+    let output = command.output().await.with_context(|| {
+        format!(
+            "failed to run APT {} simulation for {}",
+            plan.operation(),
+            plan.package()
+        )
+    })?;
     if !output.status.success() {
         bail!(
-            "APT {kind} simulation failed for {package}: {}",
+            "APT {} simulation failed for {}: {}",
+            plan.operation(),
+            plan.package(),
             String::from_utf8_lossy(&output.stderr).trim()
         );
     }
