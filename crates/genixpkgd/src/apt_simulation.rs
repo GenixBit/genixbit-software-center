@@ -147,7 +147,7 @@ fn looks_like_summary(line: &str) -> bool {
 }
 
 fn parse_size_bytes(value: &str) -> Option<u64> {
-    let mut parts = value.trim().split_whitespace();
+    let mut parts = value.split_whitespace();
     let amount = parts.next()?.replace(',', "").parse::<f64>().ok()?;
     let unit = parts.next().unwrap_or("B");
     let multiplier = match unit {
@@ -161,7 +161,7 @@ fn parse_size_bytes(value: &str) -> Option<u64> {
         _ => return None,
     };
     let bytes = amount * multiplier;
-    if bytes.is_finite() && bytes >= 0.0 && bytes <= u64::MAX as f64 {
+    if bytes.is_finite() && (0.0..=u64::MAX as f64).contains(&bytes) {
         Some(bytes.round() as u64)
     } else {
         None
