@@ -125,9 +125,12 @@ fn parse_change(line: &str) -> Option<TransactionChange> {
 }
 
 fn bracket_value(line: &str) -> Option<String> {
-    let start = line.find('[')? + 1;
-    let end = line[start..].find(']')? + start;
-    Some(line[start..end].trim().to_owned())
+    let prefix = line
+        .split_once('(')
+        .map_or(line, |(before_candidate, _)| before_candidate);
+    let start = prefix.find('[')? + 1;
+    let end = prefix[start..].find(']')? + start;
+    Some(prefix[start..end].trim().to_owned())
 }
 
 fn parenthesized_value(line: &str) -> Option<String> {
