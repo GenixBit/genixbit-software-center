@@ -25,23 +25,22 @@ jobs:
           from pathlib import Path
           path = Path('crates/genixpkgd/src/transaction.rs')
           text = path.read_text()
-          old = '''        let (preview, preview_event) = manager
-              .create_preview(preview("install", "curl"))
-              .expect("preview should be created");
-          let (_, queued_event) = manager
-              .queue_preview(preview.id)
-              .expect("preview should queue");
-          '''
-          new = '''        let (restored_preview, preview_event) = manager
-              .create_preview(preview("install", "curl"))
-              .expect("preview should be created");
-          let (_, queued_event) = manager
-              .queue_preview(restored_preview.id)
-              .expect("preview should queue");
-          '''
-          if old not in text:
-              raise SystemExit('shadowed preview marker not found')
-          path.write_text(text.replace(old, new, 1))
+          start = text.index('    fn restores_persistent_lifecycle_events_and_sequence()')
+          end = text.index('    #[test]', start)
+          block = text[start:end]
+          block = block.replace(
+              'let (preview, preview_event) = manager',
+              'let (restored_preview, preview_event) = manager',
+              1,
+          )
+          block = block.replace(
+              '.queue_preview(preview.id)',
+              '.queue_preview(restored_preview.id)',
+              1,
+          )
+          if 'let (restored_preview, preview_event)' not in block:
+              raise SystemExit('preview rename was not applied')
+          path.write_text(text[:start] + block + text[end:])
           PY
           cargo fmt --all
       - name: Commit test fix
