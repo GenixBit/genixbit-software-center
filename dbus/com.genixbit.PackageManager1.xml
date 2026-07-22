@@ -20,9 +20,18 @@
       <arg name="package" type="s" direction="in"/>
       <arg name="details" type="(bssssssstbsssssasasasbb)" direction="out"/>
     </method>
+    <method name="FeaturedCollections">
+      <arg name="collections" type="a(ssssss)" direction="out"/>
+    </method>
     <method name="SearchCatalog">
       <arg name="query" type="s" direction="in"/>
       <arg name="applications" type="a(sssssssasb)" direction="out"/>
+    </method>
+    <method name="SearchCatalogPage">
+      <arg name="query" type="s" direction="in"/>
+      <arg name="offset" type="t" direction="in"/>
+      <arg name="limit" type="t" direction="in"/>
+      <arg name="page" type="(a(sssssssasb)tttb)" direction="out"/>
     </method>
     <method name="Install">
       <arg name="package" type="s" direction="in"/>
