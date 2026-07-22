@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   rust:
@@ -24,7 +25,24 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Check
-        run: cargo check --quiet --workspace --all-targets
+        id: check
+        continue-on-error: true
+        run: cargo check --quiet --workspace --all-targets 2>check.log
+      - name: Publish compiler diagnostic
+        if: steps.check.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo '### Temporary compiler diagnostic'
+            echo
+            echo '```text'
+            tail -n 120 check.log
+            echo '```'
+          } > diagnostic.md
+          gh pr comment "$PR_NUMBER" --body-file diagnostic.md
+          exit 1
       - name: Test
         run: cargo test --quiet --workspace
       - name: Clippy
