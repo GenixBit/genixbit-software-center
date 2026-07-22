@@ -35,7 +35,10 @@ impl TransactionJournal {
     pub fn append(&self, record: &TransactionRecord) -> anyhow::Result<()> {
         if let Some(parent) = self.path.parent() {
             fs::create_dir_all(parent).with_context(|| {
-                format!("failed to create transaction journal directory {}", parent.display())
+                format!(
+                    "failed to create transaction journal directory {}",
+                    parent.display()
+                )
             })?;
         }
 
@@ -47,7 +50,10 @@ impl TransactionJournal {
                 format!("failed to open transaction journal {}", self.path.display())
             })?;
         writeln!(file, "{}", encode(record)).with_context(|| {
-            format!("failed to append transaction journal {}", self.path.display())
+            format!(
+                "failed to append transaction journal {}",
+                self.path.display()
+            )
         })?;
         file.sync_data().with_context(|| {
             format!("failed to sync transaction journal {}", self.path.display())
@@ -166,7 +172,10 @@ mod tests {
         };
 
         journal.append(&record).expect("journal append should work");
-        assert_eq!(journal.read_all().expect("journal read should work"), [record]);
+        assert_eq!(
+            journal.read_all().expect("journal read should work"),
+            [record]
+        );
         fs::remove_file(path).expect("test journal should be removable");
     }
 }

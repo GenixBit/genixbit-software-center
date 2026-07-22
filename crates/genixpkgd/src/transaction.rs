@@ -248,7 +248,13 @@ mod tests {
 
         assert_eq!(cancelled.state, "cancelled");
         assert!(!cancelled.can_cancel);
-        assert!(manager.snapshot().expect("snapshot should load").queued.is_empty());
+        assert!(
+            manager
+                .snapshot()
+                .expect("snapshot should load")
+                .queued
+                .is_empty()
+        );
         assert!(manager.cancel(record.id).is_err());
         fs::remove_file(path).expect("test journal should be removable");
     }

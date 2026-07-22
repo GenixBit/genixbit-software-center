@@ -235,7 +235,9 @@ impl PackageManager {
     ) -> zbus::fdo::Result<TransactionRecord> {
         self.authorization
             .authorize_transaction_control("cancelling a package transaction")?;
-        self.transactions.cancel(transaction_id).map_err(dbus_failed)
+        self.transactions
+            .cancel(transaction_id)
+            .map_err(dbus_failed)
     }
 
     async fn transaction_queue(&self) -> zbus::fdo::Result<TransactionQueueSnapshot> {
