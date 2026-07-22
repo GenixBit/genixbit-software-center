@@ -1,12 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/package-model",
     "crates/software-center",
     "crates/genixpkgd",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 rust-version = "1.85"
 license = "MIT"
@@ -17,7 +18,11 @@ repository = "https://github.com/GenixBit/genixbit-software-center"
 anyhow = "1.0"
 gtk = { package = "gtk4", version = "0.11" }
 adw = { package = "libadwaita", version = "0.9" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "1", features = ["fs", "macros", "process", "rt-multi-thread", "signal"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 zbus = { version = "5.18", features = ["tokio"] }
+zvariant = "5.13"
+
+genixbit-package-model = { path = "crates/package-model" }

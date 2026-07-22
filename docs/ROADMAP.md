@@ -12,14 +12,19 @@
 
 ## Phase 1 — Read-only package model
 
-- [ ] Package and application domain models
-- [ ] APT cache reader
-- [ ] dpkg installed-state reader
-- [ ] AppStream catalogue ingestion
-- [ ] Installed packages page
+- [x] Shared package, update and application domain models
+- [x] APT available-update reader
+- [x] dpkg installed-state reader
+- [x] Local AppStream catalogue search
+- [x] Installed packages page
+- [x] Updates page
+- [x] Basic AppStream search page
+- [x] Basic system health summary
 - [ ] Package detail page
-- [ ] Search and category filtering
-- [ ] System health summary
+- [ ] Installed-package search and filtering
+- [ ] AppStream categories and featured collections
+- [ ] Package origin and repository trust details
+- [ ] Pagination or virtualized lists for large installations
 
 ## Phase 2 — Transaction framework
 
@@ -44,9 +49,8 @@
 
 ## Phase 4 — Product features
 
-- [ ] Dashboard
-- [ ] Discover catalogue
-- [ ] Updates
+- [ ] Full dashboard
+- [ ] Curated Discover catalogue
 - [ ] Software Stacks
 - [ ] Security advisories
 - [ ] Approved systemd services
