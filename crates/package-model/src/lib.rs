@@ -143,3 +143,18 @@ pub struct TransactionQueueSnapshot {
     pub active: TransactionRecord,
     pub queued: Vec<TransactionRecord>,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct TransactionEvent {
+    pub sequence: u64,
+    pub event: String,
+    pub transaction_id: u64,
+    pub preview_id: u64,
+    pub kind: String,
+    pub package: String,
+    pub state: String,
+    pub progress_basis_points: u32,
+    pub level: String,
+    pub message: String,
+    pub created_unix_ms: u64,
+}
