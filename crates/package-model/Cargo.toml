@@ -1,0 +1,13 @@
+[package]
+name = "genixbit-package-model"
+description = "Shared D-Bus package and application models for GenixBit Software Center"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+zvariant.workspace = true
