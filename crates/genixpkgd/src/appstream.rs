@@ -307,6 +307,32 @@ Categories: Utility;TextEditor;
     }
 
     #[test]
+    fn paginates_catalogue_results() {
+        let records = (0..5)
+            .map(|index| AppRecord {
+                name: format!("App {index}"),
+                ..AppRecord::default()
+            })
+            .collect();
+        let page = paginate(records, 2, 2);
+        assert_eq!(page.total, 5);
+        assert_eq!(page.items.len(), 2);
+        assert_eq!(page.items[0].name, "App 2");
+        assert!(page.has_more);
+    }
+
+    #[test]
+    fn exposes_stable_featured_collections() {
+        let collections = featured_collections();
+        assert!(collections.len() >= 6);
+        assert!(
+            collections
+                .iter()
+                .all(|item| !item.id.is_empty() && !item.query.is_empty())
+        );
+    }
+
+    #[test]
     fn normalizes_category_lists() {
         assert_eq!(
             parse_categories("Utility; Development, Utility"),
@@ -349,6 +375,9 @@ Categories: Utility;TextEditor;
         assert!(validate_query("image editor").is_ok());
         assert!(validate_query("").is_err());
         assert!(validate_query("line\nbreak").is_err());
+        assert!(validate_page(0, 50).is_ok());
+        assert!(validate_page(0, 0).is_err());
+        assert!(validate_page(0, 101).is_err());
     }
 
     #[test]
