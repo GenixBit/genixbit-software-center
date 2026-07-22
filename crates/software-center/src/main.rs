@@ -94,13 +94,8 @@ fn build_ui(application: &adw::Application) {
         &discover_page,
     );
 
-    let (
-        installed_page,
-        installed_entry,
-        installed_section,
-        installed_status,
-        installed_list,
-    ) = build_installed_page();
+    let (installed_page, installed_entry, installed_section, installed_status, installed_list) =
+        build_installed_page();
     add_widget_page(
         &stack,
         "installed",
@@ -555,9 +550,8 @@ fn render_installed(ui: &UiState) {
             let query_matches = query.is_empty()
                 || package.name.to_ascii_lowercase().contains(&query)
                 || package.summary.to_ascii_lowercase().contains(&query);
-            let section_matches = section.is_empty()
-                || section == "All sections"
-                || package.section == section;
+            let section_matches =
+                section.is_empty() || section == "All sections" || package.section == section;
             query_matches && section_matches
         })
         .collect::<Vec<_>>();
@@ -818,11 +812,7 @@ fn start_package_details(ui: &UiState, package: &str) {
     });
 }
 
-fn render_package_details(
-    status: &gtk::Label,
-    list: &gtk::ListBox,
-    details: &PackageDetailRecord,
-) {
+fn render_package_details(status: &gtk::Label, list: &gtk::ListBox, details: &PackageDetailRecord) {
     clear_list(list);
     if !details.found {
         status.set_text("This package is not installed or no dpkg record was found.");

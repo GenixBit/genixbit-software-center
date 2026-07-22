@@ -89,7 +89,10 @@ pub fn parse_policy(input: &str) -> PackagePolicy {
             && (parts[1].starts_with("http://") || parts[1].starts_with("https://"))
         {
             policy.origin = format!("{} {}", parts[1], parts[2]);
-            if parts.iter().any(|part| part.to_ascii_lowercase().contains("security")) {
+            if parts
+                .iter()
+                .any(|part| part.to_ascii_lowercase().contains("security"))
+            {
                 policy.security_update = true;
             }
             break;

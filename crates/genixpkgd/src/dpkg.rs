@@ -20,7 +20,9 @@ pub fn package_details(input: &str, package_name: &str) -> PackageDetailRecord {
     parse_paragraphs(input)
         .into_iter()
         .find(|fields| {
-            fields.get("Package").is_some_and(|name| name == package_name)
+            fields
+                .get("Package")
+                .is_some_and(|name| name == package_name)
                 && fields
                     .get("Status")
                     .is_some_and(|status| status == "install ok installed")
@@ -226,7 +228,10 @@ Description: command line tool for transferring data with URL syntax
     fn returns_detailed_package_metadata() {
         let details = package_details(STATUS, "bash");
         assert!(details.found);
-        assert_eq!(details.maintainer, "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>");
+        assert_eq!(
+            details.maintainer,
+            "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>"
+        );
         assert_eq!(details.depends.len(), 2);
         assert_eq!(details.recommends, ["bash-completion"]);
         assert!(details.description.contains("sh-compatible"));
