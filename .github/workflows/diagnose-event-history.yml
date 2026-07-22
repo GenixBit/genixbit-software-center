@@ -1,0 +1,28 @@
+name: Diagnose persistent event history
+
+on:
+  push:
+    branches:
+      - feat/persistent-transaction-event-history
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/persistent-transaction-event-history
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --workspace --all-targets --message-format=short > check.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: event-history-check
+          path: check.log
+          if-no-files-found: error
