@@ -12,6 +12,8 @@
 
 ## Phase 1 — Read-only package model
 
+Phase 1 is feature-complete and keeps all package-changing operations disabled.
+
 - [x] Shared package, update and application domain models
 - [x] APT available-update reader
 - [x] dpkg installed-state reader
