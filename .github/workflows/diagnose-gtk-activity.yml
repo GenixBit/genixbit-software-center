@@ -1,0 +1,26 @@
+name: Diagnose GTK Activity page
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check --workspace --all-targets --message-format=short > check.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gtk-activity-check
+          path: check.log
+          if-no-files-found: error
