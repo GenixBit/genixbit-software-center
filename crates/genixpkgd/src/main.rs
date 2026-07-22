@@ -1,5 +1,6 @@
 mod appstream;
 mod apt;
+mod apt_simulation;
 mod authorization;
 mod dpkg;
 mod journal;
@@ -135,11 +136,24 @@ impl PackageManager {
             _ => {}
         }
 
-        let summary = format!(
-            "Preview complete for {kind} {package}. Dependency, download-size and disk-space simulation will be added before package execution is enabled."
-        );
+        let simulation = apt_simulation::simulate(kind, package)
+            .await
+            .map_err(dbus_failed)?;
         self.transactions
-            .create_preview(kind, package, &installed, &candidate, summary)
+            .create_preview(TransactionPreview {
+                id: 0,
+                kind: kind.to_owned(),
+                package: package.to_owned(),
+                changes: simulation.changes,
+                download_size_bytes: simulation.download_size_bytes,
+                installed_size_delta_bytes: simulation.installed_size_delta_bytes,
+                requires_reboot: false,
+                ready: false,
+                summary: format!(
+                    "{} Package execution remains disabled until the protected runner milestone.",
+                    simulation.summary
+                ),
+            })
             .map_err(dbus_failed)
     }
 }

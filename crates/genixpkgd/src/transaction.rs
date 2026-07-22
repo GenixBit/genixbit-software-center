@@ -8,9 +8,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use genixbit_package_model::{
-    TransactionChange, TransactionPreview, TransactionQueueSnapshot, TransactionRecord,
-};
+use genixbit_package_model::{TransactionPreview, TransactionQueueSnapshot, TransactionRecord};
 
 use crate::journal::TransactionJournal;
 
@@ -47,30 +45,15 @@ impl TransactionManager {
 
     pub fn create_preview(
         &self,
-        kind: &str,
-        package: &str,
-        current_version: &str,
-        candidate_version: &str,
-        summary: String,
+        mut preview: TransactionPreview,
     ) -> anyhow::Result<TransactionPreview> {
-        validate_kind(kind)?;
-        let preview = TransactionPreview {
-            id: self.next_preview_id.fetch_add(1, Ordering::Relaxed),
-            kind: kind.to_owned(),
-            package: package.to_owned(),
-            changes: vec![TransactionChange {
-                package: package.to_owned(),
-                action: kind.to_owned(),
-                current_version: normalize_version(current_version),
-                candidate_version: normalize_version(candidate_version),
-            }],
-            download_size_bytes: 0,
-            installed_size_delta_bytes: 0,
-            requires_reboot: false,
-            ready: true,
-            summary,
-        };
+        validate_kind(&preview.kind)?;
+        if preview.package.is_empty() {
+            bail!("transaction preview package cannot be empty");
+        }
 
+        preview.id = self.next_preview_id.fetch_add(1, Ordering::Relaxed);
+        preview.ready = true;
         self.state
             .lock()
             .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?
@@ -173,13 +156,6 @@ fn validate_kind(kind: &str) -> anyhow::Result<()> {
     }
 }
 
-fn normalize_version(version: &str) -> String {
-    match version.trim() {
-        "" | "(none)" => String::new(),
-        value => value.to_owned(),
-    }
-}
-
 fn now_unix_ms() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -190,6 +166,8 @@ fn now_unix_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use std::{fs, path::PathBuf, process, time::SystemTime};
+
+    use genixbit_package_model::TransactionPreview;
 
     use crate::journal::TransactionJournal;
 
@@ -210,14 +188,23 @@ mod tests {
         )
     }
 
+    fn preview(kind: &str, package: &str) -> TransactionPreview {
+        TransactionPreview {
+            kind: kind.to_owned(),
+            package: package.to_owned(),
+            summary: format!("Preview {kind} {package}"),
+            ..TransactionPreview::default()
+        }
+    }
+
     #[test]
     fn queues_previews_in_serial_order() {
         let (manager, path) = manager();
         let first = manager
-            .create_preview("install", "curl", "", "8.0", "Install curl".to_owned())
+            .create_preview(preview("install", "curl"))
             .expect("preview should be created");
         let second = manager
-            .create_preview("remove", "nano", "7.2", "", "Remove nano".to_owned())
+            .create_preview(preview("remove", "nano"))
             .expect("preview should be created");
 
         let first_record = manager
@@ -239,7 +226,7 @@ mod tests {
     fn cancellation_is_limited_to_queued_transactions() {
         let (manager, path) = manager();
         let preview = manager
-            .create_preview("upgrade", "curl", "7.0", "8.0", "Upgrade curl".to_owned())
+            .create_preview(preview("upgrade", "curl"))
             .expect("preview should be created");
         let record = manager
             .queue_preview(preview.id)

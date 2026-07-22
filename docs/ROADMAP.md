@@ -33,9 +33,9 @@ Phase 1 is feature-complete and keeps all package-changing operations disabled.
 
 ## Phase 2 — Transaction framework
 
-The foundation slice is in progress. Package execution remains disabled and protected transaction controls fail closed until caller-aware PolicyKit verification is connected.
+The foundation is active. Package execution remains disabled and protected transaction controls fail closed until caller-aware PolicyKit verification is connected.
 
-Foundation completed in the current slice:
+Foundation completed:
 
 - [x] Typed transaction preview, change, record and queue-snapshot models
 - [x] Fail-closed authorization boundary with an explicit session-test override
@@ -43,6 +43,7 @@ Foundation completed in the current slice:
 - [x] Append-only transaction journal with persistence tests
 - [x] D-Bus preview, queue inspection, journal inspection and cancellation APIs
 - [x] Install, remove and upgrade metadata previews without package execution
+- [x] APT dependency, download-size and disk-space simulation
 
 Remaining Phase 2 completion criteria:
 
@@ -50,7 +51,6 @@ Remaining Phase 2 completion criteria:
 - [ ] Active transaction runner on the serialized queue
 - [ ] D-Bus progress, log and completion signals
 - [ ] Cancellation rules for active package-manager subprocesses
-- [ ] APT dependency, download-size and disk-space simulation
 - [ ] Integration tests in disposable containers or virtual machines
 
 ## Phase 3 — Safe APT operations
@@ -60,7 +60,7 @@ Remaining Phase 2 completion criteria:
 - [ ] Upgrade selected packages
 - [ ] Upgrade all packages
 - [ ] Repository refresh
-- [ ] Dependency and disk-space preview
+- [x] Dependency and disk-space preview
 - [ ] Conffile and reboot-required handling
 - [ ] Recovery guidance for interrupted dpkg state
 
