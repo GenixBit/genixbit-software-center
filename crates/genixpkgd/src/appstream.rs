@@ -4,7 +4,7 @@ use anyhow::{Context, bail};
 use genixbit_package_model::{AppRecord, CatalogPage, FeaturedCollection};
 use tokio::process::Command;
 
-const MAX_CATALOG_RESULTS: usize = 1_000;
+const MAX_CATALOG_RESULTS: usize = 500;
 const MAX_PAGE_SIZE: u64 = 100;
 
 pub async fn is_available() -> bool {
@@ -20,80 +20,86 @@ pub async fn is_available() -> bool {
 pub fn featured_collections() -> Vec<FeaturedCollection> {
     vec![
         collection(
-            "developer-tools",
-            "Developer Tools",
-            "IDEs, editors and software-development utilities.",
             "development",
+            "Developer Tools",
+            "Editors, IDEs, terminals and tools for building software on GenixBit OS.",
+            "development",
+            "Development",
             "applications-development-symbolic",
         ),
         collection(
-            "creative-studio",
-            "Creative Studio",
-            "Graphics, photography, animation and design applications.",
-            "graphics",
-            "applications-graphics-symbolic",
-        ),
-        collection(
-            "office-productivity",
-            "Office & Productivity",
-            "Writing, spreadsheets, planning and document tools.",
-            "office",
-            "x-office-document-symbolic",
-        ),
-        collection(
-            "audio-video",
-            "Audio & Video",
-            "Media players, recording, editing and production software.",
-            "multimedia",
-            "applications-multimedia-symbolic",
-        ),
-        collection(
-            "education-science",
-            "Education & Science",
-            "Learning, research, mathematics and scientific tools.",
-            "science",
+            "artificial-intelligence",
+            "Artificial Intelligence",
+            "Local AI, machine-learning, data-science and model-development applications.",
+            "machine learning",
+            "Science",
             "applications-science-symbolic",
         ),
         collection(
-            "system-utilities",
-            "System Utilities",
-            "Monitoring, storage, networking and maintenance tools.",
-            "system",
+            "design",
+            "Design and Creativity",
+            "Graphics, illustration, photography, 3D and creative-production applications.",
+            "graphics",
+            "Graphics",
+            "applications-graphics-symbolic",
+        ),
+        collection(
+            "productivity",
+            "Productivity",
+            "Office, notes, planning, communication and everyday productivity tools.",
+            "productivity",
+            "Office",
+            "applications-office-symbolic",
+        ),
+        collection(
+            "audio-video",
+            "Audio and Video",
+            "Media players, recording, editing and content-creation applications.",
+            "audio video",
+            "AudioVideo",
+            "applications-multimedia-symbolic",
+        ),
+        collection(
+            "education",
+            "Education",
+            "Learning, teaching, reference and classroom applications.",
+            "education",
+            "Education",
+            "applications-education-symbolic",
+        ),
+        collection(
+            "system-tools",
+            "System Tools",
+            "Utilities for storage, monitoring, networking and system administration.",
+            "system utility",
+            "System",
             "applications-system-symbolic",
         ),
+        collection(
+            "internet",
+            "Internet and Communication",
+            "Browsers, messaging, email, remote access and network applications.",
+            "internet communication",
+            "Network",
+            "applications-internet-symbolic",
+        ),
     ]
-}
-
-fn collection(
-    id: &str,
-    title: &str,
-    description: &str,
-    query: &str,
-    icon: &str,
-) -> FeaturedCollection {
-    FeaturedCollection {
-        id: id.to_owned(),
-        title: title.to_owned(),
-        description: description.to_owned(),
-        query: query.to_owned(),
-        icon: icon.to_owned(),
-    }
 }
 
 pub async fn search(
     query: &str,
     installed_packages: &HashSet<String>,
 ) -> anyhow::Result<Vec<AppRecord>> {
-    Ok(search_page(query, 0, MAX_PAGE_SIZE, installed_packages)
-        .await?
-        .items)
+    search_page(query, installed_packages, 0, MAX_PAGE_SIZE)
+        .await
+        .map(|page| page.applications)
 }
 
 pub async fn search_page(
     query: &str,
+    installed_packages: &HashSet<String>,
     offset: u64,
     limit: u64,
-    installed_packages: &HashSet<String>,
 ) -> anyhow::Result<CatalogPage> {
     validate_query(query)?;
     validate_page(offset, limit)?;
@@ -115,26 +121,11 @@ pub async fn search_page(
         );
     }
 
-    let records = parse_search(&String::from_utf8_lossy(&output.stdout), installed_packages);
-    Ok(paginate(records, offset, limit))
-}
-
-pub fn paginate(records: Vec<AppRecord>, offset: u64, limit: u64) -> CatalogPage {
-    let total = records.len() as u64;
-    let start = usize::try_from(offset)
-        .unwrap_or(usize::MAX)
-        .min(records.len());
-    let end = start
-        .saturating_add(usize::try_from(limit).unwrap_or(usize::MAX))
-        .min(records.len());
-    let items = records[start..end].to_vec();
-    CatalogPage {
-        items,
+    Ok(paginate(
+        parse_search(&String::from_utf8_lossy(&output.stdout), installed_packages),
         offset,
         limit,
-        total,
-        has_more: end < records.len(),
-    }
+    ))
 }
 
 pub fn parse_search(input: &str, installed_packages: &HashSet<String>) -> Vec<AppRecord> {
@@ -200,6 +191,43 @@ pub fn parse_search(input: &str, installed_packages: &HashSet<String>) -> Vec<Ap
         .collect()
 }
 
+fn collection(
+    id: &str,
+    title: &str,
+    description: &str,
+    query: &str,
+    category: &str,
+    icon: &str,
+) -> FeaturedCollection {
+    FeaturedCollection {
+        id: id.to_owned(),
+        title: title.to_owned(),
+        description: description.to_owned(),
+        query: query.to_owned(),
+        category: category.to_owned(),
+        icon: icon.to_owned(),
+    }
+}
+
+fn paginate(records: Vec<AppRecord>, offset: u64, limit: u64) -> CatalogPage {
+    let total = records.len() as u64;
+    let start = usize::try_from(offset)
+        .unwrap_or(usize::MAX)
+        .min(records.len());
+    let end = start
+        .saturating_add(usize::try_from(limit).unwrap_or(usize::MAX))
+        .min(records.len());
+    let applications = records[start..end].to_vec();
+
+    CatalogPage {
+        applications,
+        total,
+        offset,
+        limit,
+        has_more: end < records.len(),
+    }
+}
+
 fn parse_categories(value: &str) -> Vec<String> {
     let mut categories = value
         .split([';', ','])
@@ -232,8 +260,11 @@ fn validate_query(query: &str) -> anyhow::Result<()> {
 }
 
 fn validate_page(offset: u64, limit: u64) -> anyhow::Result<()> {
-    if limit == 0 || limit > MAX_PAGE_SIZE || offset > 100_000 {
-        bail!("invalid catalogue page request")
+    if limit == 0 || limit > MAX_PAGE_SIZE {
+        bail!("catalog page size must be between 1 and {MAX_PAGE_SIZE}")
+    }
+    if offset > MAX_CATALOG_RESULTS as u64 {
+        bail!("catalog page offset exceeds the supported result window")
     }
     Ok(())
 }
@@ -242,10 +273,8 @@ fn validate_page(offset: u64, limit: u64) -> anyhow::Result<()> {
 mod tests {
     use std::collections::HashSet;
 
-    use genixbit_package_model::AppRecord;
-
     use super::{
-        featured_collections, paginate, parse_categories, parse_search, validate_page,
+        AppRecord, featured_collections, paginate, parse_categories, parse_search, validate_page,
         validate_query,
     };
 
@@ -312,12 +341,50 @@ Categories: Utility;TextEditor;
     }
 
     #[test]
-    fn validates_queries_and_pages() {
+    fn exposes_stable_featured_collections() {
+        let collections = featured_collections();
+        assert!(collections.len() >= 6);
+        assert!(collections.iter().all(|collection| {
+            !collection.id.is_empty()
+                && !collection.title.is_empty()
+                && !collection.query.is_empty()
+                && !collection.icon.is_empty()
+        }));
+    }
+
+    #[test]
+    fn paginates_catalog_records_without_overlap() {
+        let records: Vec<AppRecord> = (0..5)
+            .map(|index| AppRecord {
+                id: format!("app-{index}"),
+                name: format!("App {index}"),
+                ..AppRecord::default()
+            })
+            .collect();
+
+        let first = paginate(records.clone(), 0, 2);
+        let second = paginate(records, 2, 2);
+        assert_eq!(first.total, 5);
+        assert_eq!(first.applications.len(), 2);
+        assert!(first.has_more);
+        assert_eq!(second.applications[0].id, "app-2");
+    }
+
+    #[test]
+    fn validates_queries_without_treating_them_as_shell_input() {
         assert!(validate_query("image editor").is_ok());
         assert!(validate_query("").is_err());
         assert!(validate_query("line\nbreak").is_err());
         assert!(validate_page(0, 50).is_ok());
         assert!(validate_page(0, 0).is_err());
         assert!(validate_page(0, 101).is_err());
+    }
+
+    #[test]
+    fn validates_catalog_page_bounds() {
+        assert!(validate_page(0, 50).is_ok());
+        assert!(validate_page(0, 0).is_err());
+        assert!(validate_page(0, 101).is_err());
+        assert!(validate_page(501, 10).is_err());
     }
 }

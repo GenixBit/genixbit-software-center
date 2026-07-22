@@ -155,7 +155,7 @@ impl PackageManager {
         limit: u64,
     ) -> zbus::fdo::Result<CatalogPage> {
         let installed_names = self.installed_names().await.map_err(dbus_failed)?;
-        appstream::search_page(query, offset, limit, &installed_names)
+        appstream::search_page(query, &installed_names, offset, limit)
             .await
             .map_err(dbus_failed)
     }

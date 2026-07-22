@@ -67,15 +67,16 @@ pub struct FeaturedCollection {
     pub title: String,
     pub description: String,
     pub query: String,
+    pub category: String,
     pub icon: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
 pub struct CatalogPage {
-    pub items: Vec<AppRecord>,
+    pub applications: Vec<AppRecord>,
+    pub total: u64,
     pub offset: u64,
     pub limit: u64,
-    pub total: u64,
     pub has_more: bool,
 }
 

@@ -85,7 +85,7 @@ pub async fn search_catalog_page(
     proxy
         .search_catalog_page(query, offset, limit)
         .await
-        .context("failed to load an AppStream catalogue page")
+        .context("failed to load the AppStream catalogue page")
 }
 
 async fn connect() -> anyhow::Result<Connection> {

@@ -21,7 +21,7 @@
       <arg name="details" type="(bssssssstbsssssasasasbb)" direction="out"/>
     </method>
     <method name="FeaturedCollections">
-      <arg name="collections" type="a(sssss)" direction="out"/>
+      <arg name="collections" type="a(ssssss)" direction="out"/>
     </method>
     <method name="SearchCatalog">
       <arg name="query" type="s" direction="in"/>
