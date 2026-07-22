@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.genixbit.SoftwareCenter</id>
+  <name>GenixBit Software Center</name>
+  <summary>Manage software, updates and security on GenixBit OS</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="com.genixbit">
+    <name>GenixBit Labs Private Limited</name>
+  </developer>
+  <description>
+    <p>
+      GenixBit Software Center is the native software-management application for
+      GenixBit OS. It provides application discovery, package installation,
+      updates, security information, software stacks and portable system profiles.
+    </p>
+  </description>
+  <launchable type="desktop-id">com.genixbit.SoftwareCenter.desktop</launchable>
+  <provides>
+    <binary>genixbit-software-center</binary>
+  </provides>
+  <categories>
+    <category>System</category>
+  </categories>
+  <releases>
+    <release version="0.1.0" date="2026-07-22">
+      <description>
+        <p>Initial native Rust, GTK4 and Libadwaita foundation.</p>
+      </description>
+    </release>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

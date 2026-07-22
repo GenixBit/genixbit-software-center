@@ -1,0 +1,25 @@
+[Unit]
+Description=GenixBit Package Management Service
+Documentation=https://github.com/GenixBit/genixbit-software-center
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=com.genixbit.PackageManager1
+ExecStart=/usr/libexec/genixpkgd
+User=root
+Group=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<policyconfig>
+  <vendor>GenixBit Labs Private Limited</vendor>
+  <vendor_url>https://www.genixbit.com/</vendor_url>
+  <icon_name>com.genixbit.SoftwareCenter</icon_name>
+
+  <action id="com.genixbit.packagemanager.install">
+    <description>Install software on GenixBit OS</description>
+    <message>Authentication is required to install software.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="com.genixbit.packagemanager.remove">
+    <description>Remove software from GenixBit OS</description>
+    <message>Authentication is required to remove software.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+
+  <action id="com.genixbit.packagemanager.update">
+    <description>Update GenixBit OS software</description>
+    <message>Authentication is required to update system software.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin_keep</allow_active>
+    </defaults>
+  </action>
+</policyconfig>
