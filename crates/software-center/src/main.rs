@@ -20,7 +20,6 @@ const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
 const INSTALLED_PAGE_SIZE: usize = 100;
 const ACTIVITY_LIMIT: u64 = 100;
-const ACTIVITY_LIMIT: u64 = 100;
 
 #[derive(Clone)]
 struct UiState {
@@ -36,8 +35,6 @@ struct UiState {
     installed_page_status: gtk::Label,
     updates_status: gtk::Label,
     updates_list: gtk::ListBox,
-    activity_status: gtk::Label,
-    activity_list: gtk::ListBox,
     activity_status: gtk::Label,
     activity_list: gtk::ListBox,
     discover_entry: gtk::SearchEntry,
@@ -229,8 +226,6 @@ fn build_ui(application: &adw::Application) {
         installed_page_status,
         updates_status,
         updates_list,
-        activity_status,
-        activity_list,
         activity_status,
         activity_list,
         discover_entry,
