@@ -7,6 +7,7 @@ mod authorization;
 mod dpkg;
 mod event_journal;
 mod journal;
+mod recovery;
 mod simulation_control;
 mod transaction;
 

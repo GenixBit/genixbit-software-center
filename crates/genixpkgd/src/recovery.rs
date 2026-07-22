@@ -74,10 +74,8 @@ mod tests {
 
     #[test]
     fn keeps_only_the_latest_record_for_each_transaction() {
-        let recovered = recover_transactions(
-            vec![record(7, 3, "queued"), record(7, 3, "completed")],
-            500,
-        );
+        let recovered =
+            recover_transactions(vec![record(7, 3, "queued"), record(7, 3, "completed")], 500);
         assert_eq!(recovered.records[&7].state, "completed");
         assert!(recovered.interrupted.is_empty());
         assert_eq!(recovered.next_transaction_id, 8);
@@ -86,10 +84,8 @@ mod tests {
 
     #[test]
     fn marks_queued_and_running_records_interrupted() {
-        let recovered = recover_transactions(
-            vec![record(2, 4, "queued"), record(3, 5, "running")],
-            900,
-        );
+        let recovered =
+            recover_transactions(vec![record(2, 4, "queued"), record(3, 5, "running")], 900);
         assert_eq!(recovered.interrupted.len(), 2);
         for record in recovered.records.values() {
             assert_eq!(record.state, "interrupted");
