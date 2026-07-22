@@ -76,7 +76,7 @@ Remaining Phase 2 completion criteria:
 - [ ] Security advisories
 - [ ] Approved systemd services
 - [ ] System Profiles export, comparison and restore
-- [ ] Activity history
+- [x] Read-only transaction Activity history page
 - [ ] Settings and offline controls
 
 ## Phase 5 — GenixBit OS integration

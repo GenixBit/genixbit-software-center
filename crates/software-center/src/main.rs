@@ -12,13 +12,14 @@ use std::{
 use adw::prelude::*;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, UpdateRecord,
+    SystemSnapshot, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
 const INSTALLED_PAGE_SIZE: usize = 100;
+const ACTIVITY_LIMIT: u64 = 100;
 
 #[derive(Clone)]
 struct UiState {
@@ -34,6 +35,8 @@ struct UiState {
     installed_page_status: gtk::Label,
     updates_status: gtk::Label,
     updates_list: gtk::ListBox,
+    activity_status: gtk::Label,
+    activity_list: gtk::ListBox,
     discover_entry: gtk::SearchEntry,
     discover_category: gtk::DropDown,
     discover_status: gtk::Label,
@@ -142,6 +145,18 @@ fn build_ui(application: &adw::Application) {
         &updates_page,
     );
 
+    let (activity_page, activity_status, activity_list) = build_list_page(
+        "Transaction activity",
+        "Review recent package previews, simulations, cancellations, failures and interrupted work.",
+    );
+    add_widget_page(
+        &stack,
+        "activity",
+        "Activity",
+        "document-open-recent-symbolic",
+        &activity_page,
+    );
+
     add_placeholder_page(
         &stack,
         "stacks",
@@ -211,6 +226,8 @@ fn build_ui(application: &adw::Application) {
         installed_page_status,
         updates_status,
         updates_list,
+        activity_status,
+        activity_list,
         discover_entry,
         discover_category,
         discover_status,
@@ -230,7 +247,10 @@ fn build_ui(application: &adw::Application) {
 
     {
         let ui = ui.clone();
-        refresh.connect_clicked(move |_| start_snapshot_load(&ui));
+        refresh.connect_clicked(move |_| {
+            start_snapshot_load(&ui);
+            start_activity_load(&ui);
+        });
     }
     {
         let ui = ui.clone();
@@ -306,6 +326,7 @@ fn build_ui(application: &adw::Application) {
     }
 
     start_snapshot_load(&ui);
+    start_activity_load(&ui);
     start_featured_collections_load(&ui);
     window.present();
 }
@@ -812,6 +833,118 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
     }
 }
 
+fn start_activity_load(ui: &UiState) {
+    ui.activity_status
+        .set_text("Loading recent package transaction activity…");
+    clear_list(&ui.activity_list);
+
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(anyhow::Error::from)
+            .and_then(|runtime| runtime.block_on(client::recent_transactions(ACTIVITY_LIMIT)));
+        let _ = sender.send(result);
+    });
+
+    let ui = ui.clone();
+    glib::timeout_add_local(Duration::from_millis(100), move || {
+        match receiver.try_recv() {
+            Ok(Ok(records)) => {
+                render_activity(&ui, &records);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                ui.activity_status
+                    .set_text(&format!("Unable to load transaction activity: {error}"));
+                glib::ControlFlow::Break
+            }
+            Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(TryRecvError::Disconnected) => {
+                ui.activity_status
+                    .set_text("The transaction activity worker stopped unexpectedly.");
+                glib::ControlFlow::Break
+            }
+        }
+    });
+}
+
+fn render_activity(ui: &UiState, records: &[TransactionRecord]) {
+    clear_list(&ui.activity_list);
+    if records.is_empty() {
+        ui.activity_status
+            .set_text("No package transaction activity has been recorded.");
+        return;
+    }
+
+    ui.activity_status.set_text(&format!(
+        "Showing {} recent transactions. Package execution remains simulation-only.",
+        records.len()
+    ));
+    for record in records {
+        let row = adw::ActionRow::builder()
+            .title(activity_title(record))
+            .subtitle(format!("Transaction #{} · {}", record.id, record.message))
+            .build();
+
+        let badge = gtk::Label::new(Some(activity_state_label(&record.state)));
+        badge.add_css_class(activity_state_css_class(&record.state));
+        row.add_suffix(&badge);
+
+        if let Some(fraction) = activity_progress_fraction(record.progress_basis_points) {
+            let progress = gtk::ProgressBar::new();
+            progress.set_fraction(fraction);
+            progress.set_width_request(120);
+            progress.set_tooltip_text(Some(&format!(
+                "{}% complete",
+                record.progress_basis_points / 100
+            )));
+            row.add_suffix(&progress);
+        }
+        ui.activity_list.append(&row);
+    }
+}
+
+fn activity_title(record: &TransactionRecord) -> String {
+    let operation = match record.kind.as_str() {
+        "install" => "Install",
+        "remove" => "Remove",
+        "upgrade" => "Upgrade",
+        _ => "Transaction",
+    };
+    format!("{operation} {}", record.package)
+}
+
+fn activity_state_label(state: &str) -> &str {
+    match state {
+        "queued" => "Queued",
+        "running" => "Running",
+        "completed" => "Completed",
+        "failed" => "Failed",
+        "cancelled" => "Cancelled",
+        "interrupted" => "Interrupted",
+        other => other,
+    }
+}
+
+fn activity_state_css_class(state: &str) -> &'static str {
+    match state {
+        "failed" | "interrupted" => "error",
+        "completed" => "success",
+        "queued" | "running" => "accent",
+        _ => "dim-label",
+    }
+}
+
+fn activity_progress_fraction(progress_basis_points: u32) -> Option<f64> {
+    if progress_basis_points == 0 || progress_basis_points >= 10_000 {
+        None
+    } else {
+        Some(f64::from(progress_basis_points) / 10_000.0)
+    }
+}
+
 fn start_featured_collections_load(ui: &UiState) {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
@@ -1190,6 +1323,7 @@ fn render_backend_error(ui: &UiState, message: &str) {
         .set_text(&format!("Package service unavailable: {message}"));
     ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
+    ui.activity_status.set_text(message);
 }
 
 fn clear_list(list: &gtk::ListBox) {
@@ -1223,4 +1357,44 @@ fn add_widget_page<W: IsA<gtk::Widget>>(
 ) {
     let stack_page = stack.add_titled(widget, Some(name), sidebar_title);
     stack_page.set_icon_name(icon_name);
+}
+
+#[cfg(test)]
+mod activity_tests {
+    use genixbit_package_model::TransactionRecord;
+
+    use super::{activity_progress_fraction, activity_state_label, activity_title};
+
+    fn record(kind: &str, package: &str) -> TransactionRecord {
+        TransactionRecord {
+            kind: kind.to_owned(),
+            package: package.to_owned(),
+            ..TransactionRecord::default()
+        }
+    }
+
+    #[test]
+    fn formats_known_and_unknown_activity_titles() {
+        assert_eq!(activity_title(&record("install", "curl")), "Install curl");
+        assert_eq!(activity_title(&record("remove", "nano")), "Remove nano");
+        assert_eq!(activity_title(&record("upgrade", "git")), "Upgrade git");
+        assert_eq!(
+            activity_title(&record("custom", "tool")),
+            "Transaction tool"
+        );
+    }
+
+    #[test]
+    fn labels_terminal_and_active_states() {
+        assert_eq!(activity_state_label("running"), "Running");
+        assert_eq!(activity_state_label("interrupted"), "Interrupted");
+        assert_eq!(activity_state_label("custom"), "custom");
+    }
+
+    #[test]
+    fn shows_progress_only_for_incomplete_active_values() {
+        assert_eq!(activity_progress_fraction(0), None);
+        assert_eq!(activity_progress_fraction(10_000), None);
+        assert_eq!(activity_progress_fraction(5_000), Some(0.5));
+    }
 }
