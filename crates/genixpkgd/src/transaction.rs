@@ -140,7 +140,7 @@ impl TransactionManager {
             .with_context(|| format!("transaction preview {} was not found", record.preview_id))?;
         record.state = STATE_RUNNING.to_owned();
         record.progress_basis_points = 1_000;
-        record.can_cancel = false;
+        record.can_cancel = true;
         record.updated_unix_ms = now_unix_ms();
         record.message =
             "APT simulation subprocess started; package mutation remains disabled".to_owned();
@@ -247,6 +247,68 @@ impl TransactionManager {
         record.updated_unix_ms = now_unix_ms();
         record.message = message.to_owned();
         let event = self.record_event("failed", &record, "error");
+
+        self.journal.append(&record)?;
+        state.active = None;
+        state.records.insert(transaction_id, record.clone());
+        push_event(&mut state.events, event.clone());
+        Ok((record, event))
+    }
+
+    pub fn request_simulation_cancellation(
+        &self,
+        transaction_id: u64,
+    ) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
+        if state.active != Some(transaction_id) {
+            bail!("transaction {transaction_id} is not the active simulation");
+        }
+        let mut record = state
+            .records
+            .get(&transaction_id)
+            .cloned()
+            .with_context(|| format!("transaction {transaction_id} was not found"))?;
+        if record.state != STATE_RUNNING || !record.can_cancel {
+            bail!("transaction {transaction_id} cannot be cancelled");
+        }
+        record.can_cancel = false;
+        record.updated_unix_ms = now_unix_ms();
+        record.message = "Cancellation requested for the active APT simulation".to_owned();
+        let event = self.record_event("cancellation-requested", &record, "info");
+
+        self.journal.append(&record)?;
+        state.records.insert(transaction_id, record.clone());
+        push_event(&mut state.events, event.clone());
+        Ok((record, event))
+    }
+
+    pub fn cancel_active_simulation(
+        &self,
+        transaction_id: u64,
+    ) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
+        if state.active != Some(transaction_id) {
+            bail!("transaction {transaction_id} is not the active simulation");
+        }
+        let mut record = state
+            .records
+            .get(&transaction_id)
+            .cloned()
+            .with_context(|| format!("transaction {transaction_id} was not found"))?;
+        if record.state != STATE_RUNNING {
+            bail!("transaction {transaction_id} is not running");
+        }
+        record.state = STATE_CANCELLED.to_owned();
+        record.can_cancel = false;
+        record.updated_unix_ms = now_unix_ms();
+        record.message = "Active APT simulation cancelled; no packages were changed".to_owned();
+        let event = self.record_event("cancelled", &record, "info");
 
         self.journal.append(&record)?;
         state.active = None;
@@ -478,6 +540,7 @@ mod tests {
         assert_eq!(active_snapshot.active.id, first_record.id);
         assert_eq!(active_snapshot.queued.len(), 1);
         assert_eq!(running.state, "running");
+        assert!(running.can_cancel);
         assert_eq!(reviewed_preview.id, first.id);
         assert_eq!(running_event.event, "running");
         assert!(manager.begin_next_simulation().is_err());
@@ -497,6 +560,34 @@ mod tests {
         let completed_snapshot = manager.snapshot().expect("snapshot should load");
         assert!(!completed_snapshot.has_active);
         assert_eq!(completed_snapshot.queued.len(), 1);
+        fs::remove_file(path).expect("test journal should be removable");
+    }
+
+    #[test]
+    fn active_simulation_supports_requested_cancellation() {
+        let (manager, path) = manager();
+        let (preview, _) = manager
+            .create_preview(preview("install", "curl"))
+            .expect("preview should be created");
+        let (record, _) = manager
+            .queue_preview(preview.id)
+            .expect("preview should queue");
+        manager
+            .begin_next_simulation()
+            .expect("simulation should start");
+
+        let (requested, requested_event) = manager
+            .request_simulation_cancellation(record.id)
+            .expect("cancellation should be requested");
+        assert!(!requested.can_cancel);
+        assert_eq!(requested_event.event, "cancellation-requested");
+
+        let (cancelled, cancelled_event) = manager
+            .cancel_active_simulation(record.id)
+            .expect("active simulation should cancel");
+        assert_eq!(cancelled.state, "cancelled");
+        assert_eq!(cancelled_event.event, "cancelled");
+        assert!(!manager.snapshot().expect("snapshot should load").has_active);
         fs::remove_file(path).expect("test journal should be removable");
     }
 

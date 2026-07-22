@@ -32,9 +32,7 @@ impl SimulationControl {
             .as_ref()
             .context("no active simulation cancellation handle is registered")?;
         if active.transaction_id != transaction_id {
-            bail!(
-                "transaction {transaction_id} is not the registered active simulation"
-            );
+            bail!("transaction {transaction_id} is not the registered active simulation");
         }
         active
             .cancellation
