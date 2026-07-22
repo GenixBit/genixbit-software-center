@@ -46,12 +46,14 @@ Foundation completed:
 - [x] Bounded cursor-based transaction event history
 - [x] Install, remove and upgrade metadata previews without package execution
 - [x] APT dependency, download-size and disk-space simulation
+- [x] Simulation-only active runner on the serialized queue
+- [x] Simulated running, progress and completion event emission
 
 Remaining Phase 2 completion criteria:
 
 - [ ] Caller-aware PolicyKit authorization helper
-- [ ] Active transaction runner on the serialized queue
-- [ ] Active-run progress, log and completion event emission
+- [ ] Real package transaction runner on the serialized queue
+- [ ] Active package-manager subprocess progress and log parsing
 - [ ] Cancellation rules for active package-manager subprocesses
 - [ ] Integration tests in disposable containers or virtual machines
 
