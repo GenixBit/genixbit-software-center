@@ -12,7 +12,7 @@ use genixbit_package_model::{
     TransactionEvent, TransactionPreview, TransactionQueueSnapshot, TransactionRecord,
 };
 
-use crate::journal::TransactionJournal;
+use crate::{event_journal::EventJournal, journal::TransactionJournal};
 
 const KIND_INSTALL: &str = "install";
 const KIND_REMOVE: &str = "remove";
@@ -41,16 +41,34 @@ pub struct TransactionManager {
     next_event_sequence: AtomicU64,
     state: Mutex<ManagerState>,
     journal: TransactionJournal,
+    event_journal: EventJournal,
 }
 
 impl TransactionManager {
     pub fn new(journal: TransactionJournal) -> Self {
+        let event_journal = EventJournal::from_transaction_journal(journal.path());
+        let restored_events = match event_journal.read_recent(MAX_EVENT_HISTORY) {
+            Ok(events) => events,
+            Err(error) => {
+                tracing::warn!(%error, "failed to restore transaction event history");
+                Vec::new()
+            }
+        };
+        let next_event_sequence = restored_events
+            .last()
+            .map(|event| event.sequence.saturating_add(1))
+            .unwrap_or(1);
+        let state = ManagerState {
+            events: VecDeque::from(restored_events),
+            ..ManagerState::default()
+        };
         Self {
             next_preview_id: AtomicU64::new(1),
             next_transaction_id: AtomicU64::new(1),
-            next_event_sequence: AtomicU64::new(1),
-            state: Mutex::new(ManagerState::default()),
+            next_event_sequence: AtomicU64::new(next_event_sequence),
+            state: Mutex::new(state),
             journal,
+            event_journal,
         }
     }
 
@@ -71,7 +89,7 @@ impl TransactionManager {
             .lock()
             .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
         state.previews.insert(preview.id, preview.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((preview, event))
     }
 
@@ -110,7 +128,7 @@ impl TransactionManager {
         self.journal.append(&record)?;
         state.queue.push_back(record.id);
         state.records.insert(record.id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -150,7 +168,7 @@ impl TransactionManager {
         state.queue.pop_front();
         state.active = Some(transaction_id);
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, preview, event))
     }
 
@@ -191,7 +209,7 @@ impl TransactionManager {
 
         self.journal.append(&record)?;
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -224,7 +242,7 @@ impl TransactionManager {
         self.journal.append(&record)?;
         state.active = None;
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -257,7 +275,7 @@ impl TransactionManager {
         self.journal.append(&record)?;
         state.active = None;
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -293,7 +311,7 @@ impl TransactionManager {
         let event = self.record_event("log", &record, level);
 
         state.records.insert(transaction_id, record);
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok(event)
     }
 
@@ -323,7 +341,7 @@ impl TransactionManager {
 
         self.journal.append(&record)?;
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -355,7 +373,7 @@ impl TransactionManager {
         self.journal.append(&record)?;
         state.active = None;
         state.records.insert(transaction_id, record.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((record, event))
     }
 
@@ -386,7 +404,7 @@ impl TransactionManager {
         self.journal.append(&cancelled)?;
         state.queue.retain(|id| *id != transaction_id);
         state.records.insert(transaction_id, cancelled.clone());
-        push_event(&mut state.events, event.clone());
+        self.store_event(&mut state.events, event.clone());
         Ok((cancelled, event))
     }
 
@@ -434,6 +452,24 @@ impl TransactionManager {
 
     pub fn journal_path(&self) -> &std::path::Path {
         self.journal.path()
+    }
+
+    pub fn event_journal_path(&self) -> &std::path::Path {
+        self.event_journal.path()
+    }
+
+    fn store_event(&self, events: &mut VecDeque<TransactionEvent>, event: TransactionEvent) {
+        if event.event != "log"
+            && let Err(error) = self.event_journal.append(&event)
+        {
+            tracing::warn!(
+                sequence = event.sequence,
+                transaction_id = event.transaction_id,
+                %error,
+                "failed to persist transaction lifecycle event"
+            );
+        }
+        push_event(events, event);
     }
 
     fn preview_event(&self, preview: &TransactionPreview) -> TransactionEvent {
@@ -502,7 +538,7 @@ mod tests {
 
     use genixbit_package_model::TransactionPreview;
 
-    use crate::journal::TransactionJournal;
+    use crate::{event_journal::EventJournal, journal::TransactionJournal};
 
     use super::TransactionManager;
 
@@ -519,6 +555,12 @@ mod tests {
             TransactionManager::new(TransactionJournal::new(path.clone())),
             path,
         )
+    }
+
+    fn cleanup(path: PathBuf) {
+        let event_journal = EventJournal::from_transaction_journal(&path);
+        let _ = fs::remove_file(event_journal.path());
+        let _ = fs::remove_file(path);
     }
 
     fn preview(kind: &str, package: &str) -> TransactionPreview {
@@ -555,7 +597,7 @@ mod tests {
         assert!(first_event.sequence < second_event.sequence);
         assert!(second_event.sequence < first_queue_event.sequence);
         assert!(first_queue_event.sequence < second_queue_event.sequence);
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 
     #[test]
@@ -612,7 +654,7 @@ mod tests {
         let completed_snapshot = manager.snapshot().expect("snapshot should load");
         assert!(!completed_snapshot.has_active);
         assert_eq!(completed_snapshot.queued.len(), 1);
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 
     #[test]
@@ -655,7 +697,7 @@ mod tests {
                 .record_simulation_log(record.id, "info", "late")
                 .is_err()
         );
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 
     #[test]
@@ -683,7 +725,7 @@ mod tests {
         assert_eq!(cancelled.state, "cancelled");
         assert_eq!(cancelled_event.event, "cancelled");
         assert!(!manager.snapshot().expect("snapshot should load").has_active);
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 
     #[test]
@@ -706,7 +748,7 @@ mod tests {
         assert_eq!(event.event, "failed");
         assert_eq!(event.level, "error");
         assert!(!manager.snapshot().expect("snapshot should load").has_active);
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 
     #[test]
@@ -731,7 +773,34 @@ mod tests {
                 .is_empty()
         );
         assert!(manager.cancel(record.id).is_err());
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
+    }
+
+    #[test]
+    fn restores_persistent_lifecycle_events_and_sequence() {
+        let (manager, path) = manager();
+        let (preview, preview_event) = manager
+            .create_preview(preview("install", "curl"))
+            .expect("preview should be created");
+        let (_, queued_event) = manager
+            .queue_preview(preview.id)
+            .expect("preview should queue");
+        let event_path = manager.event_journal_path().to_path_buf();
+        drop(manager);
+
+        let restored = TransactionManager::new(TransactionJournal::new(path.clone()));
+        assert_eq!(
+            restored.events(0, 10).expect("restored events should load"),
+            [preview_event, queued_event.clone()]
+        );
+        let (_, next_event) = restored
+            .create_preview(preview("remove", "nano"))
+            .expect("new preview should be created");
+        assert!(next_event.sequence > queued_event.sequence);
+        drop(restored);
+
+        assert!(event_path.exists());
+        cleanup(path);
     }
 
     #[test]
@@ -753,6 +822,6 @@ mod tests {
             [queue_event]
         );
         assert!(manager.events(0, 0).is_err());
-        fs::remove_file(path).expect("test journal should be removable");
+        cleanup(path);
     }
 }

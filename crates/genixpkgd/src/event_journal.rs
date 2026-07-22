@@ -217,7 +217,9 @@ mod tests {
         ));
         let journal = EventJournal::from_transaction_journal(&transaction_path);
         for sequence in 1..=5 {
-            journal.append(&event(sequence)).expect("event should append");
+            journal
+                .append(&event(sequence))
+                .expect("event should append");
         }
 
         assert_eq!(
