@@ -779,11 +779,11 @@ mod tests {
     #[test]
     fn restores_persistent_lifecycle_events_and_sequence() {
         let (manager, path) = manager();
-        let (preview, preview_event) = manager
+        let (restored_preview, preview_event) = manager
             .create_preview(preview("install", "curl"))
             .expect("preview should be created");
         let (_, queued_event) = manager
-            .queue_preview(preview.id)
+            .queue_preview(restored_preview.id)
             .expect("preview should queue");
         let event_path = manager.event_journal_path().to_path_buf();
         drop(manager);
