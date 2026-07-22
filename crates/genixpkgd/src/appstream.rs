@@ -328,7 +328,7 @@ Categories: Utility;TextEditor;
 
     #[test]
     fn paginates_catalog_records_without_overlap() {
-        let records = (0..5)
+        let records: Vec<AppRecord> = (0..5)
             .map(|index| AppRecord {
                 id: format!("app-{index}"),
                 name: format!("App {index}"),
