@@ -10,6 +10,7 @@ mod journal;
 mod recovery;
 mod simulation_control;
 mod transaction;
+mod transaction_query;
 
 use std::{collections::HashSet, path::PathBuf};
 
@@ -473,6 +474,10 @@ impl PackageManager {
 
     async fn transaction_queue(&self) -> zbus::fdo::Result<TransactionQueueSnapshot> {
         self.transactions.snapshot().map_err(dbus_failed)
+    }
+
+    async fn recent_transactions(&self, limit: u64) -> zbus::fdo::Result<Vec<TransactionRecord>> {
+        self.transactions.recent_records(limit).map_err(dbus_failed)
     }
 
     async fn transaction_events(

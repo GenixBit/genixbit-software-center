@@ -45,11 +45,8 @@ mod tests {
 
     #[test]
     fn returns_newest_records_first_with_a_stable_id_tiebreaker() {
-        let result = recent_transactions(
-            [record(1, 100), record(2, 200), record(3, 200)],
-            3,
-        )
-        .expect("records should sort");
+        let result = recent_transactions([record(1, 100), record(2, 200), record(3, 200)], 3)
+            .expect("records should sort");
         assert_eq!(
             result.iter().map(|record| record.id).collect::<Vec<_>>(),
             [3, 2, 1]
@@ -58,8 +55,8 @@ mod tests {
 
     #[test]
     fn applies_the_requested_limit() {
-        let result = recent_transactions([record(1, 100), record(2, 200)], 1)
-            .expect("records should load");
+        let result =
+            recent_transactions([record(1, 100), record(2, 200)], 1).expect("records should load");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].id, 2);
     }

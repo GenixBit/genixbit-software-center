@@ -16,6 +16,7 @@ use crate::{
     event_journal::EventJournal,
     journal::TransactionJournal,
     recovery::{RecoveredTransactions, recover_transactions},
+    transaction_query::recent_transactions,
 };
 
 const KIND_INSTALL: &str = "install";
@@ -481,6 +482,14 @@ impl TransactionManager {
         })
     }
 
+    pub fn recent_records(&self, limit: u64) -> anyhow::Result<Vec<TransactionRecord>> {
+        let state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
+        recent_transactions(state.records.values().cloned(), limit)
+    }
+
     pub fn events(&self, after_sequence: u64, limit: u64) -> anyhow::Result<Vec<TransactionEvent>> {
         if limit == 0 || limit > MAX_EVENT_HISTORY as u64 {
             bail!("event history limit must be between 1 and {MAX_EVENT_HISTORY}");
@@ -825,6 +834,45 @@ mod tests {
                 .is_empty()
         );
         assert!(manager.cancel(record.id).is_err());
+        cleanup(path);
+    }
+
+    #[test]
+    fn recent_records_return_one_latest_state_per_transaction() {
+        let (manager, path) = manager();
+        let (first_preview, _) = manager
+            .create_preview(preview("install", "curl"))
+            .expect("preview should be created");
+        let (first_record, _) = manager
+            .queue_preview(first_preview.id)
+            .expect("preview should queue");
+        manager
+            .begin_next_simulation()
+            .expect("simulation should start");
+        manager
+            .complete_simulation(first_record.id)
+            .expect("simulation should complete");
+
+        let (second_preview, _) = manager
+            .create_preview(preview("remove", "nano"))
+            .expect("preview should be created");
+        let (second_record, _) = manager
+            .queue_preview(second_preview.id)
+            .expect("preview should queue");
+
+        let recent = manager.recent_records(10).expect("records should load");
+        assert_eq!(recent.len(), 2);
+        assert!(
+            recent
+                .iter()
+                .any(|record| { record.id == first_record.id && record.state == "completed" })
+        );
+        assert!(
+            recent
+                .iter()
+                .any(|record| { record.id == second_record.id && record.state == "queued" })
+        );
+        assert!(manager.recent_records(0).is_err());
         cleanup(path);
     }
 
