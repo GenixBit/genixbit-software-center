@@ -1,0 +1,89 @@
+name: Fix APT plan Clippy diagnostics
+
+on:
+  push:
+    branches:
+      - feat/immutable-apt-execution-plans
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/immutable-apt-execution-plans
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Use plan metadata in production diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          plan = Path('crates/genixpkgd/src/apt_plan.rs')
+          text = plan.read_text()
+          old = '''    pub fn arguments(&self) -> &[String] {
+                  &self.arguments
+              }
+          '''
+          new = '''    #[cfg(test)]
+              pub fn arguments(&self) -> &[String] {
+                  &self.arguments
+              }
+          '''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('arguments accessor marker not found')
+          plan.write_text(text)
+
+          simulation = Path('crates/genixpkgd/src/apt_simulation.rs')
+          text = simulation.read_text()
+          old = '''    let output = command
+                  .output()
+                  .await
+                  .with_context(|| format!("failed to run APT {kind} simulation for {package}"))?;
+              if !output.status.success() {
+                  bail!(
+                      "APT {kind} simulation failed for {package}: {}",
+                      String::from_utf8_lossy(&output.stderr).trim()
+                  );
+              }
+          '''
+          new = '''    let output = command.output().await.with_context(|| {
+                  format!(
+                      "failed to run APT {} simulation for {}",
+                      plan.operation(),
+                      plan.package()
+                  )
+              })?;
+              if !output.status.success() {
+                  bail!(
+                      "APT {} simulation failed for {}: {}",
+                      plan.operation(),
+                      plan.package(),
+                      String::from_utf8_lossy(&output.stderr).trim()
+                  );
+              }
+          '''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('simulation diagnostic marker not found')
+          simulation.write_text(text)
+          PY
+          cargo fmt --all
+      - name: Commit Clippy fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/genixpkgd/src/apt_plan.rs crates/genixpkgd/src/apt_simulation.rs
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(apt): use plan metadata in runtime diagnostics"
+          git push origin HEAD:feat/immutable-apt-execution-plans
