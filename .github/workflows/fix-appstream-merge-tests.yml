@@ -1,0 +1,67 @@
+name: Fix AppStream merge test artifacts
+
+on:
+  push:
+    branches:
+      - feat/gtk-featured-pagination
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/gtk-featured-pagination
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Remove duplicate and obsolete tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('crates/genixpkgd/src/appstream.rs')
+          text = path.read_text()
+          obsolete = '''    #[test]
+              fn paginates_catalogue_results() {
+                  let records = (0..5)
+                      .map(|index| AppRecord {
+                          name: format!("App {index}"),
+                          ..AppRecord::default()
+                      })
+                      .collect();
+                  let page = paginate(records, 2, 2);
+                  assert_eq!(page.total, 5);
+                  assert_eq!(page.items.len(), 2);
+                  assert_eq!(page.items[0].name, "App 2");
+                  assert!(page.has_more);
+              }
+
+              #[test]
+              fn exposes_stable_featured_collections() {
+                  let collections = featured_collections();
+                  assert!(collections.len() >= 6);
+                  assert!(
+                      collections
+                          .iter()
+                          .all(|item| !item.id.is_empty() && !item.query.is_empty())
+                  );
+              }
+
+          '''
+          if obsolete not in text:
+              raise SystemExit('obsolete merged test block not found')
+          path.write_text(text.replace(obsolete, ''))
+          PY
+          cargo fmt --all
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/genixpkgd/src/appstream.rs
+          git commit -m "test: remove duplicated AppStream merge artifacts"
+          git push origin HEAD:feat/gtk-featured-pagination
