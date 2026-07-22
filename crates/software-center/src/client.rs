@@ -1,6 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
-    AppRecord, PackageDetailRecord, PackageRecord, SystemHealth, SystemSnapshot, UpdateRecord,
+    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
+    SystemSnapshot, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
@@ -16,7 +17,14 @@ trait PackageManager {
     async fn list_installed(&self) -> zbus::Result<Vec<PackageRecord>>;
     async fn check_updates(&self) -> zbus::Result<Vec<UpdateRecord>>;
     async fn package_details(&self, package: &str) -> zbus::Result<PackageDetailRecord>;
+    async fn featured_collections(&self) -> zbus::Result<Vec<FeaturedCollection>>;
     async fn search_catalog(&self, query: &str) -> zbus::Result<Vec<AppRecord>>;
+    async fn search_catalog_page(
+        &self,
+        query: &str,
+        offset: u64,
+        limit: u64,
+    ) -> zbus::Result<CatalogPage>;
 }
 
 pub async fn load_snapshot() -> anyhow::Result<SystemSnapshot> {
@@ -41,6 +49,18 @@ pub async fn package_details(package: &str) -> anyhow::Result<PackageDetailRecor
         .context("failed to load package details")
 }
 
+#[allow(dead_code)]
+pub async fn featured_collections() -> anyhow::Result<Vec<FeaturedCollection>> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .featured_collections()
+        .await
+        .context("failed to load featured AppStream collections")
+}
+
 pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<AppRecord>> {
     let connection = connect().await?;
     let proxy = PackageManagerProxy::new(&connection)
@@ -50,6 +70,22 @@ pub async fn search_catalog(query: &str) -> anyhow::Result<Vec<AppRecord>> {
         .search_catalog(query)
         .await
         .context("failed to search the AppStream catalogue")
+}
+
+#[allow(dead_code)]
+pub async fn search_catalog_page(
+    query: &str,
+    offset: u64,
+    limit: u64,
+) -> anyhow::Result<CatalogPage> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .search_catalog_page(query, offset, limit)
+        .await
+        .context("failed to load an AppStream catalogue page")
 }
 
 async fn connect() -> anyhow::Result<Connection> {

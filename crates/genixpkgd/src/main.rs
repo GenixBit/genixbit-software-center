@@ -6,7 +6,8 @@ use std::{collections::HashSet, path::PathBuf};
 
 use anyhow::Context;
 use genixbit_package_model::{
-    AppRecord, PackageDetailRecord, PackageRecord, SystemHealth, SystemSnapshot, UpdateRecord,
+    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
+    SystemSnapshot, UpdateRecord,
 };
 use zbus::{connection, interface};
 
@@ -43,6 +44,15 @@ impl PackageManager {
 
     async fn installed_packages(&self) -> anyhow::Result<Vec<PackageRecord>> {
         Ok(dpkg::parse_status(&self.dpkg_status().await?))
+    }
+
+    async fn installed_names(&self) -> anyhow::Result<HashSet<String>> {
+        Ok(self
+            .installed_packages()
+            .await?
+            .into_iter()
+            .map(|package| package.name)
+            .collect())
     }
 
     async fn snapshot(&self) -> anyhow::Result<SystemSnapshot> {
@@ -127,13 +137,25 @@ impl PackageManager {
         Ok(details)
     }
 
+    async fn featured_collections(&self) -> Vec<FeaturedCollection> {
+        appstream::featured_collections()
+    }
+
     async fn search_catalog(&self, query: &str) -> zbus::fdo::Result<Vec<AppRecord>> {
-        let installed = self.installed_packages().await.map_err(dbus_failed)?;
-        let installed_names = installed
-            .into_iter()
-            .map(|package| package.name)
-            .collect::<HashSet<_>>();
+        let installed_names = self.installed_names().await.map_err(dbus_failed)?;
         appstream::search(query, &installed_names)
+            .await
+            .map_err(dbus_failed)
+    }
+
+    async fn search_catalog_page(
+        &self,
+        query: &str,
+        offset: u64,
+        limit: u64,
+    ) -> zbus::fdo::Result<CatalogPage> {
+        let installed_names = self.installed_names().await.map_err(dbus_failed)?;
+        appstream::search_page(query, offset, limit, &installed_names)
             .await
             .map_err(dbus_failed)
     }

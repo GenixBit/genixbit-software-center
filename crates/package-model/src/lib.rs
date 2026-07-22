@@ -62,6 +62,24 @@ pub struct AppRecord {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct FeaturedCollection {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub query: String,
+    pub icon: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct CatalogPage {
+    pub items: Vec<AppRecord>,
+    pub offset: u64,
+    pub limit: u64,
+    pub total: u64,
+    pub has_more: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
 pub struct SystemHealth {
     pub dpkg_status_readable: bool,
     pub apt_available: bool,
