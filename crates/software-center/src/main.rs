@@ -1010,6 +1010,72 @@ fn render_featured_collections(ui: &UiState, collections: &[FeaturedCollection])
     }
 }
 
+fn start_featured_collections_load(ui: &UiState) {
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(anyhow::Error::from)
+            .and_then(|runtime| runtime.block_on(client::featured_collections()));
+        let _ = sender.send(result);
+    });
+
+    let ui = ui.clone();
+    glib::timeout_add_local(Duration::from_millis(100), move || {
+        match receiver.try_recv() {
+            Ok(Ok(collections)) => {
+                render_featured_collections(&ui, &collections);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                clear_list(&ui.discover_collections);
+                let row = adw::ActionRow::builder()
+                    .title("Featured collections unavailable")
+                    .subtitle(error.to_string())
+                    .build();
+                ui.discover_collections.append(&row);
+                glib::ControlFlow::Break
+            }
+            Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(TryRecvError::Disconnected) => {
+                clear_list(&ui.discover_collections);
+                let row = adw::ActionRow::builder()
+                    .title("Featured collection worker stopped")
+                    .subtitle("Restart the software center and try again")
+                    .build();
+                ui.discover_collections.append(&row);
+                glib::ControlFlow::Break
+            }
+        }
+    });
+}
+
+fn render_featured_collections(ui: &UiState, collections: &[FeaturedCollection]) {
+    clear_list(&ui.discover_collections);
+    for collection in collections {
+        let row = adw::ActionRow::builder()
+            .title(&collection.title)
+            .subtitle(&collection.description)
+            .activatable(true)
+            .build();
+        let image = gtk::Image::from_icon_name(&collection.icon);
+        row.add_prefix(&image);
+        if !collection.category.is_empty() {
+            let category = gtk::Label::new(Some(&collection.category));
+            category.add_css_class("dim-label");
+            row.add_suffix(&category);
+        }
+        let callback_ui = ui.clone();
+        let query = collection.query.clone();
+        row.connect_activated(move |_| {
+            callback_ui.discover_entry.set_text(&query);
+            start_catalog_page(&callback_ui, query.clone(), 0);
+        });
+        ui.discover_collections.append(&row);
+    }
+}
+
 fn start_catalog_search(ui: &UiState) {
     let query = ui.discover_entry.text().trim().to_owned();
     if query.is_empty() {
