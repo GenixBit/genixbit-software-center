@@ -101,3 +101,45 @@ pub struct SystemSnapshot {
     pub updates: Vec<UpdateRecord>,
     pub health: SystemHealth,
 }
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct TransactionChange {
+    pub package: String,
+    pub action: String,
+    pub current_version: String,
+    pub candidate_version: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct TransactionPreview {
+    pub id: u64,
+    pub kind: String,
+    pub package: String,
+    pub changes: Vec<TransactionChange>,
+    pub download_size_bytes: u64,
+    pub installed_size_delta_bytes: i64,
+    pub requires_reboot: bool,
+    pub ready: bool,
+    pub summary: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct TransactionRecord {
+    pub id: u64,
+    pub preview_id: u64,
+    pub kind: String,
+    pub package: String,
+    pub state: String,
+    pub progress_basis_points: u32,
+    pub can_cancel: bool,
+    pub created_unix_ms: u64,
+    pub updated_unix_ms: u64,
+    pub message: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct TransactionQueueSnapshot {
+    pub has_active: bool,
+    pub active: TransactionRecord,
+    pub queued: Vec<TransactionRecord>,
+}

@@ -33,12 +33,24 @@ Phase 1 is feature-complete and keeps all package-changing operations disabled.
 
 ## Phase 2 — Transaction framework
 
-- [ ] PolicyKit authorization helper
-- [ ] Serialized transaction queue
+The foundation slice is in progress. Package execution remains disabled and protected transaction controls fail closed until caller-aware PolicyKit verification is connected.
+
+Foundation completed in the current slice:
+
+- [x] Typed transaction preview, change, record and queue-snapshot models
+- [x] Fail-closed authorization boundary with an explicit session-test override
+- [x] Serialized pending queue with deterministic ordering
+- [x] Append-only transaction journal with persistence tests
+- [x] D-Bus preview, queue inspection, journal inspection and cancellation APIs
+- [x] Install, remove and upgrade metadata previews without package execution
+
+Remaining Phase 2 completion criteria:
+
+- [ ] Caller-aware PolicyKit authorization helper
+- [ ] Active transaction runner on the serialized queue
 - [ ] D-Bus progress, log and completion signals
-- [ ] Cancellation rules
-- [ ] Transaction journal
-- [ ] Install, remove and upgrade previews
+- [ ] Cancellation rules for active package-manager subprocesses
+- [ ] APT dependency, download-size and disk-space simulation
 - [ ] Integration tests in disposable containers or virtual machines
 
 ## Phase 3 — Safe APT operations
