@@ -24,6 +24,7 @@ pub enum AptSimulationOutcome {
 pub struct AptSimulationLog {
     pub level: String,
     pub message: String,
+    pub progress_basis_points: Option<u32>,
 }
 
 enum WaitOutcome {
@@ -103,6 +104,11 @@ where
             let _ = logs
                 .send(AptSimulationLog {
                     level: level.to_owned(),
+                    progress_basis_points: if level == "info" {
+                        progress_for_line(&line)
+                    } else {
+                        None
+                    },
                     message,
                 })
                 .await;
@@ -117,6 +123,32 @@ where
         }
     }
     Ok(captured)
+}
+
+fn progress_for_line(line: &str) -> Option<u32> {
+    let line = line.trim();
+    if line.starts_with("Reading package lists") {
+        Some(2_000)
+    } else if line.starts_with("Building dependency tree") {
+        Some(3_000)
+    } else if line.starts_with("Reading state information") {
+        Some(4_000)
+    } else if line.starts_with("Calculating upgrade") {
+        Some(5_000)
+    } else if line.starts_with("The following ") {
+        Some(5_500)
+    } else if line.starts_with("Inst ") || line.starts_with("Remv ") {
+        Some(7_000)
+    } else if line.starts_with("Conf ") {
+        Some(8_000)
+    } else if line.contains(" upgraded,")
+        && line.contains(" newly installed,")
+        && line.contains(" to remove")
+    {
+        Some(8_500)
+    } else {
+        None
+    }
 }
 
 fn bounded_log_line(line: &str) -> String {
@@ -139,7 +171,7 @@ async fn wait_for_cancellation(cancellation: &mut watch::Receiver<bool>) {
 mod tests {
     use tokio::sync::watch;
 
-    use super::{MAX_LOG_CHARACTERS, bounded_log_line, wait_for_cancellation};
+    use super::{MAX_LOG_CHARACTERS, bounded_log_line, progress_for_line, wait_for_cancellation};
 
     #[tokio::test]
     async fn observes_a_cancellation_request() {
@@ -155,5 +187,27 @@ mod tests {
         let bounded = bounded_log_line(&line);
         assert_eq!(bounded.chars().count(), MAX_LOG_CHARACTERS + 1);
         assert!(bounded.ends_with('…'));
+    }
+
+    #[test]
+    fn classifies_deterministic_apt_progress_stages() {
+        let cases = [
+            ("Reading package lists...", Some(2_000)),
+            ("Building dependency tree...", Some(3_000)),
+            ("Reading state information...", Some(4_000)),
+            ("Calculating upgrade...", Some(5_000)),
+            ("The following NEW packages will be installed:", Some(5_500)),
+            ("Inst curl (8.0 stable [amd64])", Some(7_000)),
+            ("Remv nano [7.2]", Some(7_000)),
+            ("Conf curl (8.0 stable [amd64])", Some(8_000)),
+            (
+                "1 upgraded, 2 newly installed, 0 to remove and 4 not upgraded.",
+                Some(8_500),
+            ),
+            ("Need to get 1 MB of archives.", None),
+        ];
+        for (line, expected) in cases {
+            assert_eq!(progress_for_line(line), expected, "{line}");
+        }
     }
 }
