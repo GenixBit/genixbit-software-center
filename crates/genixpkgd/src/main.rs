@@ -364,8 +364,35 @@ impl PackageManager {
             }
         };
 
-        let outcome =
-            apt_live::run_cancellable(&running.kind, &running.package, cancellation).await;
+        let (log_sender, mut log_receiver) = tokio::sync::mpsc::channel(64);
+        let mut simulation = Box::pin(apt_live::run_cancellable(
+            &running.kind,
+            &running.package,
+            cancellation,
+            log_sender,
+        ));
+        let mut logs_open = true;
+        let outcome = loop {
+            tokio::select! {
+                result = &mut simulation => break result,
+                log = log_receiver.recv(), if logs_open => {
+                    match log {
+                        Some(log) => {
+                            match self.transactions.record_simulation_log(
+                                running.id,
+                                &log.level,
+                                &log.message,
+                            ) {
+                                Ok(event) => Self::emit_lifecycle_event(&emitter, &event).await,
+                                Err(error) => break Err(error),
+                            }
+                        }
+                        None => logs_open = false,
+                    }
+                }
+            }
+        };
+        drop(simulation);
         if let Err(error) = self.simulation_control.clear(running.id).await {
             let message = format!("failed to clear simulation cancellation handle: {error}");
             let (failed, failed_event) = self

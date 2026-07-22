@@ -255,6 +255,42 @@ impl TransactionManager {
         Ok((record, event))
     }
 
+    pub fn record_simulation_log(
+        &self,
+        transaction_id: u64,
+        level: &str,
+        message: &str,
+    ) -> anyhow::Result<TransactionEvent> {
+        if !matches!(level, "info" | "error") {
+            bail!("unsupported simulation log level {level}");
+        }
+        if message.trim().is_empty() {
+            bail!("simulation log message cannot be empty");
+        }
+        let mut state = self
+            .state
+            .lock()
+            .map_err(|_| anyhow::anyhow!("transaction manager lock was poisoned"))?;
+        if state.active != Some(transaction_id) {
+            bail!("transaction {transaction_id} is not the active simulation");
+        }
+        let mut record = state
+            .records
+            .get(&transaction_id)
+            .cloned()
+            .with_context(|| format!("transaction {transaction_id} was not found"))?;
+        if record.state != STATE_RUNNING {
+            bail!("transaction {transaction_id} is not running");
+        }
+        record.updated_unix_ms = now_unix_ms();
+        record.message = message.to_owned();
+        let event = self.record_event("log", &record, level);
+
+        state.records.insert(transaction_id, record);
+        push_event(&mut state.events, event.clone());
+        Ok(event)
+    }
+
     pub fn request_simulation_cancellation(
         &self,
         transaction_id: u64,
@@ -560,6 +596,49 @@ mod tests {
         let completed_snapshot = manager.snapshot().expect("snapshot should load");
         assert!(!completed_snapshot.has_active);
         assert_eq!(completed_snapshot.queued.len(), 1);
+        fs::remove_file(path).expect("test journal should be removable");
+    }
+
+    #[test]
+    fn simulation_logs_are_bounded_to_the_active_transaction() {
+        let (manager, path) = manager();
+        let (preview, _) = manager
+            .create_preview(preview("install", "curl"))
+            .expect("preview should be created");
+        let (record, _) = manager
+            .queue_preview(preview.id)
+            .expect("preview should queue");
+        manager
+            .begin_next_simulation()
+            .expect("simulation should start");
+
+        let info = manager
+            .record_simulation_log(record.id, "info", "Reading package lists")
+            .expect("info log should record");
+        let error = manager
+            .record_simulation_log(record.id, "error", "APT warning")
+            .expect("error log should record");
+        assert_eq!(info.event, "log");
+        assert_eq!(info.level, "info");
+        assert_eq!(error.level, "error");
+        assert!(
+            manager
+                .record_simulation_log(record.id, "debug", "no")
+                .is_err()
+        );
+        assert!(
+            manager
+                .record_simulation_log(record.id, "info", "")
+                .is_err()
+        );
+        manager
+            .cancel_active_simulation(record.id)
+            .expect("simulation should cancel");
+        assert!(
+            manager
+                .record_simulation_log(record.id, "info", "late")
+                .is_err()
+        );
         fs::remove_file(path).expect("test journal should be removable");
     }
 
