@@ -113,9 +113,7 @@ impl TransactionManager {
         Ok((record, event))
     }
 
-    pub fn begin_next_simulation(
-        &self,
-    ) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
+    pub fn begin_next_simulation(&self) -> anyhow::Result<(TransactionRecord, TransactionEvent)> {
         let mut state = self
             .state
             .lock()
@@ -136,7 +134,8 @@ impl TransactionManager {
         record.progress_basis_points = 1_000;
         record.can_cancel = false;
         record.updated_unix_ms = now_unix_ms();
-        record.message = "Simulation runner started; no package command will be executed".to_owned();
+        record.message =
+            "Simulation runner started; no package command will be executed".to_owned();
         let event = self.record_event("running", &record, "info");
 
         self.journal.append(&record)?;
