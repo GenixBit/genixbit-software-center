@@ -1,6 +1,7 @@
-use anyhow::{Context, bail};
+use anyhow::Context;
 use genixbit_package_model::TransactionChange;
-use tokio::process::Command;
+
+use crate::apt_plan::AptCommandPlan;
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct AptSimulation {
@@ -11,25 +12,8 @@ pub struct AptSimulation {
 }
 
 pub async fn simulate(kind: &str, package: &str) -> anyhow::Result<AptSimulation> {
-    let mut command = Command::new("apt-get");
-    command
-        .arg("--simulate")
-        .env("LC_ALL", "C")
-        .env("DEBIAN_FRONTEND", "noninteractive")
-        .kill_on_drop(true);
-
-    match kind {
-        "install" => {
-            command.arg("install").arg(package);
-        }
-        "remove" => {
-            command.arg("remove").arg(package);
-        }
-        "upgrade" => {
-            command.args(["install", "--only-upgrade", package]);
-        }
-        _ => bail!("unsupported APT simulation kind {kind}"),
-    }
+    let plan = AptCommandPlan::simulation(kind, package)?;
+    let mut command = plan.command()?;
 
     let output = command
         .output()

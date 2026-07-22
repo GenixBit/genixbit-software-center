@@ -1,5 +1,6 @@
 mod appstream;
 mod apt;
+mod apt_plan;
 mod apt_simulation;
 mod authorization;
 mod dpkg;

@@ -40,7 +40,9 @@ impl AptCommandPlan {
             "mutating APT execution plans are disabled in this milestone"
         );
         ensure!(
-            self.arguments.first().is_some_and(|argument| argument == "--simulate"),
+            self.arguments
+                .first()
+                .is_some_and(|argument| argument == "--simulate"),
             "APT execution plan is missing the mandatory simulation guard"
         );
 
@@ -82,27 +84,38 @@ mod tests {
 
     #[test]
     fn creates_fixed_install_remove_and_upgrade_arguments() {
-        let install = AptCommandPlan::simulation("install", "curl")
-            .expect("install plan should be created");
+        let install =
+            AptCommandPlan::simulation("install", "curl").expect("install plan should be created");
         assert_eq!(install.operation(), "install");
         assert_eq!(install.package(), "curl");
         assert_eq!(install.arguments(), ["--simulate", "install", "curl"]);
 
-        let remove = AptCommandPlan::simulation("remove", "nano")
-            .expect("remove plan should be created");
+        let remove =
+            AptCommandPlan::simulation("remove", "nano").expect("remove plan should be created");
         assert_eq!(remove.arguments(), ["--simulate", "remove", "nano"]);
 
         let upgrade = AptCommandPlan::simulation("upgrade", "libgtk-4-1:amd64")
             .expect("upgrade plan should be created");
         assert_eq!(
             upgrade.arguments(),
-            ["--simulate", "install", "--only-upgrade", "libgtk-4-1:amd64"]
+            [
+                "--simulate",
+                "install",
+                "--only-upgrade",
+                "libgtk-4-1:amd64"
+            ]
         );
     }
 
     #[test]
     fn rejects_shell_and_option_injection() {
-        for package in ["", "../curl", "curl;reboot", "$(id)", "--allow-unauthenticated"] {
+        for package in [
+            "",
+            "../curl",
+            "curl;reboot",
+            "$(id)",
+            "--allow-unauthenticated",
+        ] {
             assert!(
                 AptCommandPlan::simulation("install", package).is_err(),
                 "{package}"
