@@ -29,7 +29,6 @@ jobs:
         run: |
           git fetch origin feat/gtk-featured-pagination
           git switch feat/gtk-featured-pagination
-          cp "$GITHUB_WORKSPACE/ci-merge-check.log" ci-merge-check.log
           if [ -z "$(git status --porcelain -- ci-merge-check.log)" ]; then
             exit 0
           fi
