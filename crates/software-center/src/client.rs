@@ -1,7 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
     CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, UpdateRecord,
+    SystemSnapshot, TransactionRecord, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
@@ -24,6 +24,7 @@ trait PackageManager {
         offset: u64,
         limit: u64,
     ) -> zbus::Result<CatalogPage>;
+    async fn recent_transactions(&self, limit: u64) -> zbus::Result<Vec<TransactionRecord>>;
 }
 
 pub async fn load_snapshot() -> anyhow::Result<SystemSnapshot> {
@@ -72,6 +73,17 @@ pub async fn search_catalog_page(
         .search_catalog_page(query, offset, limit)
         .await
         .context("failed to load the AppStream catalogue page")
+}
+
+pub async fn recent_transactions(limit: u64) -> anyhow::Result<Vec<TransactionRecord>> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .recent_transactions(limit)
+        .await
+        .context("failed to load recent package transactions")
 }
 
 async fn connect() -> anyhow::Result<Connection> {
