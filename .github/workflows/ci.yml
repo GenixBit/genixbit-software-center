@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install native dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libdbus-1-dev
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgtk-4-dev libadwaita-1-dev libdbus-1-dev >/dev/null
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -24,8 +24,8 @@ jobs:
       - name: Format
         run: cargo fmt --all -- --check
       - name: Check
-        run: cargo check --workspace --all-targets
+        run: cargo check --quiet --workspace --all-targets
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --quiet --workspace
       - name: Clippy
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        run: cargo clippy --quiet --workspace --all-targets -- -D warnings
