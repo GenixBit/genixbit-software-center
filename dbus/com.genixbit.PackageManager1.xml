@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<node name="/com/genixbit/PackageManager1">
+  <interface name="com.genixbit.PackageManager1">
+    <method name="Version">
+      <arg name="version" type="s" direction="out"/>
+    </method>
+    <method name="ListInstalled">
+      <arg name="packages" type="as" direction="out"/>
+    </method>
+    <method name="CheckUpdates">
+      <arg name="packages" type="as" direction="out"/>
+    </method>
+    <method name="Install">
+      <arg name="package" type="s" direction="in"/>
+      <arg name="transaction_id" type="s" direction="out"/>
+    </method>
+    <method name="Remove">
+      <arg name="package" type="s" direction="in"/>
+      <arg name="transaction_id" type="s" direction="out"/>
+    </method>
+  </interface>
+</node>

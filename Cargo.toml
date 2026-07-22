@@ -1,0 +1,23 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/software-center",
+    "crates/genixpkgd",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+license = "MIT"
+authors = ["GenixBit Labs Private Limited"]
+repository = "https://github.com/GenixBit/genixbit-software-center"
+
+[workspace.dependencies]
+anyhow = "1.0"
+gtk = { package = "gtk4", version = "0.11" }
+adw = { package = "libadwaita", version = "0.9" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+zbus = { version = "5.18", features = ["tokio"] }

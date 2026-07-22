@@ -1,0 +1,15 @@
+[package]
+name = "genixbit-software-center"
+description = "Native software center for GenixBit OS"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+adw.workspace = true
+gtk.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
