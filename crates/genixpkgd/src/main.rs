@@ -372,6 +372,7 @@ impl PackageManager {
             log_sender,
         ));
         let mut logs_open = true;
+        let mut observed_progress = running.progress_basis_points;
         let outcome = loop {
             tokio::select! {
                 result = &mut simulation => break result,
@@ -385,6 +386,22 @@ impl PackageManager {
                             ) {
                                 Ok(event) => Self::emit_lifecycle_event(&emitter, &event).await,
                                 Err(error) => break Err(error),
+                            }
+                            if let Some(progress) = log.progress_basis_points
+                                && progress > observed_progress
+                            {
+                                let message = format!("APT simulation progress: {}", log.message);
+                                match self.transactions.update_simulation_progress(
+                                    running.id,
+                                    progress,
+                                    &message,
+                                ) {
+                                    Ok((_, event)) => {
+                                        observed_progress = progress;
+                                        Self::emit_lifecycle_event(&emitter, &event).await;
+                                    }
+                                    Err(error) => break Err(error),
+                                }
                             }
                         }
                         None => logs_open = false,
