@@ -74,7 +74,7 @@ Remaining Phase 2 completion criteria:
 - [ ] Curated Discover catalogue
 - [ ] Software Stacks
 - [ ] Security advisories
-- [ ] Approved systemd services
+- [x] Approved systemd services
 - [ ] System Profiles export, comparison and restore
 - [x] Read-only transaction Activity history page
 - [ ] Settings and offline controls

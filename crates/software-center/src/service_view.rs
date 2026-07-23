@@ -17,12 +17,7 @@ impl ServiceSummary {
         }
         format!(
             "{} approved services: {} active, {} failed, {} inactive, {} unavailable and {} enabled.",
-            self.total,
-            self.active,
-            self.failed,
-            self.inactive,
-            self.unavailable,
-            self.enabled
+            self.total, self.active, self.failed, self.inactive, self.unavailable, self.enabled
         )
     }
 }
@@ -131,8 +126,17 @@ mod tests {
 
     #[test]
     fn labels_unavailable_before_active_state() {
-        assert_eq!(service_state_label(&service("not-found", "inactive", "disabled")), "Unavailable");
-        assert_eq!(service_state_label(&service("loaded", "failed", "disabled")), "Failed");
-        assert_eq!(service_state_label(&service("loaded", "active", "enabled")), "Active");
+        assert_eq!(
+            service_state_label(&service("not-found", "inactive", "disabled")),
+            "Unavailable"
+        );
+        assert_eq!(
+            service_state_label(&service("loaded", "failed", "disabled")),
+            "Failed"
+        );
+        assert_eq!(
+            service_state_label(&service("loaded", "active", "enabled")),
+            "Active"
+        );
     }
 }

@@ -1,7 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
-    CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord, SystemHealth,
-    SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
+    CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
+    SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
