@@ -75,11 +75,13 @@ Remaining Phase 2 completion criteria:
 - [x] Software Stacks
 - [x] Security advisories
 - [x] Approved systemd services
-- [ ] System Profiles export, comparison and restore
+- [x] System Profiles export, comparison and restore preview
 - [x] Read-only transaction Activity history page
 - [x] Settings and offline controls
 
 Software Stacks currently reports curated package roles and installed progress from the local snapshot only; installation controls remain disabled.
+
+System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,000-package parsing limit.
 
 ## Phase 5 — GenixBit OS integration
 
@@ -97,3 +99,5 @@ Software Stacks currently reports curated package roles and installed progress f
 - [ ] Implement backend behind the existing service contract
 - [ ] Migration and coexistence strategy
 - [ ] Atomic transaction and rollback support
+
+System Profiles restore remains a fail-closed preview until the real transaction runner and safe APT operations are complete.
