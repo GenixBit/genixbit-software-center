@@ -1,0 +1,30 @@
+name: Apply GTK approved services page
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/gtk-approved-services-page
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: python3 scripts/apply-gtk-approved-services-page.py
+      - run: cargo fmt --all
+      - name: Commit approved services page
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/software-center/src/main.rs crates/software-center/src/client.rs crates/software-center/src/service_view.rs docs/ROADMAP.md
+          git commit -m "feat(services): add read-only GTK page"
+          git push origin HEAD:feat/gtk-approved-services-page
