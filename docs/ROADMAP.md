@@ -72,7 +72,7 @@ Remaining Phase 2 completion criteria:
 
 - [x] Full dashboard
 - [x] Curated Discover catalogue
-- [ ] Software Stacks
+- [x] Software Stacks
 - [ ] Security advisories
 - [x] Approved systemd services
 - [ ] System Profiles export, comparison and restore
