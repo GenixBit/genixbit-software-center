@@ -1,0 +1,38 @@
+@define-color genixbit_accent #4b7bec;
+@define-color genixbit_success #2d9d61;
+@define-color genixbit_warning #d58b1f;
+@define-color genixbit_error #c44545;
+
+.genixbit-brand-title {
+  font-weight: 800;
+  font-size: 1.35rem;
+}
+
+.genixbit-brand-subtitle {
+  opacity: 0.72;
+}
+
+.genixbit-card {
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.genixbit-status-success {
+  color: @genixbit_success;
+  font-weight: 700;
+}
+
+.genixbit-status-warning {
+  color: @genixbit_warning;
+  font-weight: 700;
+}
+
+.genixbit-status-error {
+  color: @genixbit_error;
+  font-weight: 700;
+}
+
+.genixbit-accent {
+  color: @genixbit_accent;
+  font-weight: 700;
+}
