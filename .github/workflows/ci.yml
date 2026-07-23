@@ -24,6 +24,10 @@ jobs:
             --contract release/release-contract.json
       - name: Test release and rollback validator
         run: python3 -m unittest discover -s tests -p 'test_release_rollback.py'
+      - name: Validate accessibility policy
+        run: python3 scripts/validate-accessibility.py --root .
+      - name: Test accessibility policy
+        run: python3 -m unittest discover -s tests -p 'test_accessibility_audit.py'
       - name: Install native dependencies
         run: |
           sudo apt-get update
