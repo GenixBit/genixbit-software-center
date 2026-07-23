@@ -46,7 +46,7 @@ use stack_view::{
 };
 use system_profile::{ProfileComparison, SystemProfile, compare_profile};
 
-const APP_ID: &str = "com.genixbit.SoftwareCenter";
+const APP_ID: &str = design_tokens::APP_ICON_NAME;
 const CATALOG_PAGE_SIZE: u64 = 25;
 const INSTALLED_PAGE_SIZE: usize = 100;
 const ACTIVITY_LIMIT: u64 = 100;
@@ -116,6 +116,7 @@ struct UiState {
 }
 
 fn install_design_tokens() {
+    debug_assert!(design_tokens::css_is_complete());
     let Some(display) = gtk::gdk::Display::default() else {
         return;
     };
