@@ -1,7 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
-    CatalogPage, CuratedCollection, FeaturedCollection, PackageDetailRecord, PackageRecord,
-    ServiceRecord, SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
+    CatalogPage, CuratedCollection, PackageDetailRecord, PackageRecord, ServiceRecord, SystemHealth,
+    SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
@@ -18,7 +18,6 @@ trait PackageManager {
     async fn check_updates(&self) -> zbus::Result<Vec<UpdateRecord>>;
     async fn list_approved_services(&self) -> zbus::Result<Vec<ServiceRecord>>;
     async fn package_details(&self, package: &str) -> zbus::Result<PackageDetailRecord>;
-    async fn featured_collections(&self) -> zbus::Result<Vec<FeaturedCollection>>;
     async fn curated_catalogue(&self) -> zbus::Result<Vec<CuratedCollection>>;
     async fn search_catalog_page(
         &self,
@@ -65,17 +64,6 @@ pub async fn package_details(package: &str) -> anyhow::Result<PackageDetailRecor
         .package_details(package)
         .await
         .context("failed to load package details")
-}
-
-pub async fn featured_collections() -> anyhow::Result<Vec<FeaturedCollection>> {
-    let connection = connect().await?;
-    let proxy = PackageManagerProxy::new(&connection)
-        .await
-        .context("failed to create package-manager proxy")?;
-    proxy
-        .featured_collections()
-        .await
-        .context("failed to load featured AppStream collections")
 }
 
 pub async fn curated_catalogue() -> anyhow::Result<Vec<CuratedCollection>> {
