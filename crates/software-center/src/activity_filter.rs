@@ -19,12 +19,7 @@ impl ActivitySummary {
     pub fn status_text(self) -> String {
         format!(
             "{} recorded · {} active · {} completed · {} failed · {} cancelled · {} interrupted",
-            self.total,
-            self.active,
-            self.completed,
-            self.failed,
-            self.cancelled,
-            self.interrupted
+            self.total, self.active, self.completed, self.failed, self.cancelled, self.interrupted
         )
     }
 }
@@ -83,9 +78,7 @@ pub fn summarize_records(records: &[TransactionRecord]) -> ActivitySummary {
 mod tests {
     use genixbit_package_model::TransactionRecord;
 
-    use super::{
-        ALL_OPERATIONS, ALL_STATES, ActivitySummary, filter_records, summarize_records,
-    };
+    use super::{ALL_OPERATIONS, ALL_STATES, ActivitySummary, filter_records, summarize_records};
 
     fn record(id: u64, kind: &str, package: &str, state: &str, message: &str) -> TransactionRecord {
         TransactionRecord {
