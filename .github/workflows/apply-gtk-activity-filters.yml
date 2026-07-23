@@ -19,7 +19,26 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - run: python3 scripts/apply-gtk-activity-filters.py
+      - name: Apply Activity filter patch
+        run: |
+          set +e
+          python3 scripts/apply-gtk-activity-filters.py > patch.log 2>&1
+          echo $? > patch.status
+          exit 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: activity-filter-patch-log
+          path: |
+            patch.log
+            patch.status
+          if-no-files-found: error
+      - name: Verify Activity filter patch
+        run: |
+          status="$(cat patch.status)"
+          if [ "$status" != "0" ]; then
+            cat patch.log
+            exit "$status"
+          fi
       - run: cargo fmt --all
       - name: Commit Activity filters
         run: |
