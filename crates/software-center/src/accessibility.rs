@@ -37,11 +37,11 @@ pub fn install_actions(
     search_entries: Vec<(&'static str, gtk::SearchEntry)>,
 ) {
     debug_assert_eq!(search_entries.len(), SEARCHABLE_PAGES.len());
-    debug_assert!(SEARCHABLE_PAGES.iter().all(|expected| {
-        search_entries
+    debug_assert!(
+        SEARCHABLE_PAGES
             .iter()
-            .any(|(page, _)| page == expected)
-    }));
+            .all(|expected| { search_entries.iter().any(|(page, _)| page == expected) })
+    );
 
     let refresh_action = gio::SimpleAction::new("refresh", None);
     let refresh_button = refresh_button.clone();
