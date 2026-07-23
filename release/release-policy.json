@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "application_id": "com.genixbit.SoftwareCenter",
+  "current": {
+    "version": "0.2.0",
+    "dbus_api": 1,
+    "transaction_journal": 1,
+    "event_journal": 1,
+    "settings_format": 1,
+    "system_profile_format": 1
+  },
+  "rollback_targets": [
+    {
+      "version": "0.1.0",
+      "dbus_api": 1,
+      "transaction_journal": 1,
+      "event_journal": 1,
+      "settings_format": 1,
+      "system_profile_format": 1
+    }
+  ],
+  "required_assets": [
+    "data/com.genixbit.SoftwareCenter.desktop",
+    "data/com.genixbit.SoftwareCenter.metainfo.xml",
+    "data/com.genixbit.SoftwareCenter.css",
+    "data/icons/hicolor/scalable/apps/com.genixbit.SoftwareCenter.svg",
+    "data/icons/hicolor/symbolic/apps/com.genixbit.SoftwareCenter-symbolic.svg",
+    "dbus/com.genixbit.PackageManager1.xml",
+    "systemd/genixpkgd.service"
+  ]
+}
