@@ -17,6 +17,8 @@ jobs:
         run: python3 scripts/validate-os-image-install.py
       - name: Test repository signing validator
         run: python3 -m unittest discover -s tests -p 'test_repository_signing.py'
+      - name: Test release and rollback contract
+        run: python3 -m unittest discover -s tests -p 'test_release_rollback.py'
       - name: Install native dependencies
         run: |
           sudo apt-get update
@@ -31,5 +33,7 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Test
         run: cargo test --workspace
+      - name: Release build
+        run: cargo build --workspace --release --locked
       - name: Clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
