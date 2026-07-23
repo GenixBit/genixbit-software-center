@@ -86,12 +86,14 @@ System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,0
 ## Phase 5 — GenixBit OS integration
 
 - [x] Branded icon and design tokens
-- [ ] Default installation in the GenixBit OS image
+- [x] Default installation in the GenixBit OS image
 - [ ] Repository signing validation
 - [ ] Release and rollback testing
 - [ ] Accessibility and keyboard-navigation audit
 - [ ] Translations
 - [ ] Stable D-Bus API versioning
+
+The OS image consumes `os-image/default-packages.list`; CI verifies the default package selection and required runtime assets without enabling package-changing operations.
 
 ## Phase 6 — Future GenixPkg backend
 
