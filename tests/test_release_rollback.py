@@ -17,6 +17,7 @@ SPEC.loader.exec_module(release_rollback)
 
 BASE_CONTRACT = {
     "schema": 1,
+    "description": "Deterministic release and rollback test contract.",
     "package": "genixbit-software-center",
     "version": "0.2.0",
     "application_id": "com.genixbit.SoftwareCenter",
