@@ -17,7 +17,12 @@ jobs:
         run: python3 scripts/validate-os-image-install.py
       - name: Test repository signing validator
         run: python3 -m unittest discover -s tests -p 'test_repository_signing.py'
-      - name: Test release and rollback contract
+      - name: Validate release source contract
+        run: |
+          python3 scripts/validate-release-rollback.py source \
+            --source-root . \
+            --contract release/release-contract.json
+      - name: Test release and rollback validator
         run: python3 -m unittest discover -s tests -p 'test_release_rollback.py'
       - name: Install native dependencies
         run: |
