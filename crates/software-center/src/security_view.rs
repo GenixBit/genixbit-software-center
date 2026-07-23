@@ -36,6 +36,10 @@ pub fn security_updates(updates: &[UpdateRecord]) -> Vec<&UpdateRecord> {
     updates.iter().filter(|update| update.security).collect()
 }
 
+pub fn security_filters_active(query: &str, source: &str) -> bool {
+    !query.trim().is_empty() || (!source.is_empty() && source != ALL_SECURITY_SOURCES)
+}
+
 pub fn filter_security_updates<'a>(
     updates: &'a [UpdateRecord],
     query: &str,
@@ -88,8 +92,8 @@ mod tests {
     use genixbit_package_model::UpdateRecord;
 
     use super::{
-        ALL_SECURITY_SOURCES, SecuritySummary, filter_security_updates, security_updates,
-        summarize_security,
+        ALL_SECURITY_SOURCES, SecuritySummary, filter_security_updates, security_filters_active,
+        security_updates, summarize_security,
     };
 
     fn update(name: &str, source: &str, security: bool) -> UpdateRecord {
@@ -112,6 +116,14 @@ mod tests {
         ];
 
         assert_eq!(security_updates(&updates), [&updates[0], &updates[2]]);
+    }
+
+    #[test]
+    fn detects_query_and_source_filter_state() {
+        assert!(!security_filters_active("", ALL_SECURITY_SOURCES));
+        assert!(!security_filters_active("   ", ""));
+        assert!(security_filters_active("curl", ALL_SECURITY_SOURCES));
+        assert!(security_filters_active("", "Ubuntu-Security"));
     }
 
     #[test]
