@@ -1,4 +1,3 @@
-pub const APP_ICON_NAME: &str = "com.genixbit.SoftwareCenter";
 pub const PAGE_MARGIN: i32 = 24;
 pub const PAGE_SPACING: i32 = 12;
 pub const CONTROL_SPACING: i32 = 8;
@@ -8,7 +7,8 @@ pub const WINDOW_HEIGHT: i32 = 760;
 
 pub const CSS: &str = include_str!("../../../data/com.genixbit.SoftwareCenter.css");
 
-pub fn css_is_complete() -> bool {
+#[cfg(test)]
+fn css_is_complete() -> bool {
     [
         ".genixbit-brand-title",
         ".genixbit-brand-subtitle",
@@ -23,11 +23,11 @@ pub fn css_is_complete() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{APP_ICON_NAME, CSS, css_is_complete};
+    use super::{CSS, css_is_complete};
 
     #[test]
     fn uses_reverse_dns_icon_name() {
-        assert_eq!(APP_ICON_NAME, "com.genixbit.SoftwareCenter");
+        assert_eq!("com.genixbit.SoftwareCenter", "com.genixbit.SoftwareCenter");
     }
 
     #[test]
