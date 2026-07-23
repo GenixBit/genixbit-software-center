@@ -17,8 +17,9 @@ pub fn filter_records<'a>(
             let operation_matches = operation.is_empty()
                 || operation == ALL_OPERATIONS
                 || operation.eq_ignore_ascii_case(&record.kind);
-            let state_matches =
-                state.is_empty() || state == ALL_STATES || state.eq_ignore_ascii_case(&record.state);
+            let state_matches = state.is_empty()
+                || state == ALL_STATES
+                || state.eq_ignore_ascii_case(&record.state);
             let query_matches = query.is_empty()
                 || record.package.to_ascii_lowercase().contains(&query)
                 || record.message.to_ascii_lowercase().contains(&query)
@@ -37,7 +38,13 @@ mod tests {
 
     use super::{ALL_OPERATIONS, ALL_STATES, filter_records};
 
-    fn record(id: u64, kind: &str, package: &str, state: &str, message: &str) -> TransactionRecord {
+    fn record(
+        id: u64,
+        kind: &str,
+        package: &str,
+        state: &str,
+        message: &str,
+    ) -> TransactionRecord {
         TransactionRecord {
             id,
             preview_id: id,
