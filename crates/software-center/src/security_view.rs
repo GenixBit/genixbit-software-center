@@ -55,7 +55,10 @@ pub fn filter_security_updates<'a>(
             query.is_empty()
                 || update.name.to_ascii_lowercase().contains(&query)
                 || update.current_version.to_ascii_lowercase().contains(&query)
-                || update.candidate_version.to_ascii_lowercase().contains(&query)
+                || update
+                    .candidate_version
+                    .to_ascii_lowercase()
+                    .contains(&query)
                 || update.architecture.to_ascii_lowercase().contains(&query)
                 || update.source.to_ascii_lowercase().contains(&query)
         })
