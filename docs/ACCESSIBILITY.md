@@ -20,6 +20,8 @@ GenixBit Software Center provides a deterministic keyboard path through every pr
 | `Alt+9` | System Profiles |
 | `Alt+0` | Settings |
 
+The shortcuts are application-scoped GTK actions, so they operate only while GenixBit Software Center is active and do not register system-wide key bindings.
+
 The Refresh button also exposes the `_Refresh` mnemonic in its visible label. Standard GTK keyboard behavior remains available for `Tab`, `Shift+Tab`, arrow-key selection, `Enter`, `Space`, and `Escape` where supported by the focused widget or dialog.
 
 ## Screen reader and focus audit
