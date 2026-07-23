@@ -1,0 +1,3 @@
+# Packages installed by default in the GenixBit OS desktop image.
+# Keep one Debian binary package name per line.
+genixbit-software-center
