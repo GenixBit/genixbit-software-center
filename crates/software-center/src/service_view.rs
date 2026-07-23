@@ -1,5 +1,7 @@
 use genixbit_package_model::ServiceRecord;
 
+pub const ALL_SERVICE_STATES: &str = "All states";
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct ServiceSummary {
     pub total: usize,
@@ -46,6 +48,41 @@ pub fn summarize_services(services: &[ServiceRecord]) -> ServiceSummary {
     summary
 }
 
+pub fn service_filters_active(query: &str, state: &str) -> bool {
+    !query.trim().is_empty() || (!state.is_empty() && state != ALL_SERVICE_STATES)
+}
+
+pub fn filter_services<'a>(
+    services: &'a [ServiceRecord],
+    query: &str,
+    state: &str,
+) -> Vec<&'a ServiceRecord> {
+    let query = query.trim().to_ascii_lowercase();
+    services
+        .iter()
+        .filter(|service| {
+            query.is_empty()
+                || service.name.to_ascii_lowercase().contains(&query)
+                || service.description.to_ascii_lowercase().contains(&query)
+                || service.load_state.to_ascii_lowercase().contains(&query)
+                || service.active_state.to_ascii_lowercase().contains(&query)
+                || service.sub_state.to_ascii_lowercase().contains(&query)
+                || service.unit_file_state.to_ascii_lowercase().contains(&query)
+        })
+        .filter(|service| {
+            if state.is_empty() || state == ALL_SERVICE_STATES {
+                return true;
+            }
+            let label = service_state_label(service);
+            if state == "Transitional" {
+                matches!(label, "Starting" | "Stopping" | "Reloading")
+            } else {
+                label.eq_ignore_ascii_case(state)
+            }
+        })
+        .collect()
+}
+
 pub fn service_state_label(service: &ServiceRecord) -> &str {
     if service.load_state == "not-found" || service.load_state == "error" {
         return "Unavailable";
@@ -74,12 +111,15 @@ pub fn service_state_css_class(service: &ServiceRecord) -> &'static str {
 mod tests {
     use genixbit_package_model::ServiceRecord;
 
-    use super::{ServiceSummary, service_state_label, summarize_services};
+    use super::{
+        ALL_SERVICE_STATES, ServiceSummary, filter_services, service_filters_active,
+        service_state_label, summarize_services,
+    };
 
-    fn service(load: &str, active: &str, unit_file: &str) -> ServiceRecord {
+    fn service(name: &str, load: &str, active: &str, unit_file: &str) -> ServiceRecord {
         ServiceRecord {
-            name: "example.service".to_owned(),
-            description: "Example".to_owned(),
+            name: name.to_owned(),
+            description: format!("{name} description"),
             load_state: load.to_owned(),
             active_state: active.to_owned(),
             sub_state: "running".to_owned(),
@@ -90,10 +130,10 @@ mod tests {
     #[test]
     fn summarizes_approved_service_states() {
         let services = [
-            service("loaded", "active", "enabled"),
-            service("loaded", "failed", "disabled"),
-            service("loaded", "inactive", "static"),
-            service("not-found", "inactive", "disabled"),
+            service("one.service", "loaded", "active", "enabled"),
+            service("two.service", "loaded", "failed", "disabled"),
+            service("three.service", "loaded", "inactive", "static"),
+            service("four.service", "not-found", "inactive", "disabled"),
         ];
         assert_eq!(
             summarize_services(&services),
@@ -125,17 +165,63 @@ mod tests {
     }
 
     #[test]
+    fn detects_active_filters() {
+        assert!(!service_filters_active("", ALL_SERVICE_STATES));
+        assert!(!service_filters_active("  ", ""));
+        assert!(service_filters_active("genix", ALL_SERVICE_STATES));
+        assert!(service_filters_active("", "Failed"));
+    }
+
+    #[test]
+    fn filters_by_query_and_user_facing_state() {
+        let services = [
+            service("genixpkgd.service", "loaded", "active", "enabled"),
+            service("worker.service", "loaded", "failed", "disabled"),
+            service("missing.service", "not-found", "inactive", "disabled"),
+            service("starting.service", "loaded", "activating", "enabled"),
+        ];
+        assert_eq!(
+            filter_services(&services, "genix", ALL_SERVICE_STATES),
+            [&services[0]]
+        );
+        assert_eq!(filter_services(&services, "", "Failed"), [&services[1]]);
+        assert_eq!(
+            filter_services(&services, "", "Unavailable"),
+            [&services[2]]
+        );
+        assert_eq!(
+            filter_services(&services, "", "Transitional"),
+            [&services[3]]
+        );
+    }
+
+    #[test]
     fn labels_unavailable_before_active_state() {
         assert_eq!(
-            service_state_label(&service("not-found", "inactive", "disabled")),
+            service_state_label(&service(
+                "missing.service",
+                "not-found",
+                "inactive",
+                "disabled"
+            )),
             "Unavailable"
         );
         assert_eq!(
-            service_state_label(&service("loaded", "failed", "disabled")),
+            service_state_label(&service(
+                "failed.service",
+                "loaded",
+                "failed",
+                "disabled"
+            )),
             "Failed"
         );
         assert_eq!(
-            service_state_label(&service("loaded", "active", "enabled")),
+            service_state_label(&service(
+                "active.service",
+                "loaded",
+                "active",
+                "enabled"
+            )),
             "Active"
         );
     }
