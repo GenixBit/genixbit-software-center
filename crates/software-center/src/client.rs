@@ -1,7 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
     CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, TransactionRecord, UpdateRecord,
+    SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
@@ -25,6 +25,11 @@ trait PackageManager {
         limit: u64,
     ) -> zbus::Result<CatalogPage>;
     async fn recent_transactions(&self, limit: u64) -> zbus::Result<Vec<TransactionRecord>>;
+    async fn transaction_events(
+        &self,
+        after_sequence: u64,
+        limit: u64,
+    ) -> zbus::Result<Vec<TransactionEvent>>;
 }
 
 pub async fn load_snapshot() -> anyhow::Result<SystemSnapshot> {
@@ -84,6 +89,20 @@ pub async fn recent_transactions(limit: u64) -> anyhow::Result<Vec<TransactionRe
         .recent_transactions(limit)
         .await
         .context("failed to load recent package transactions")
+}
+
+pub async fn transaction_events(
+    after_sequence: u64,
+    limit: u64,
+) -> anyhow::Result<Vec<TransactionEvent>> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .transaction_events(after_sequence, limit)
+        .await
+        .context("failed to load transaction lifecycle events")
 }
 
 async fn connect() -> anyhow::Result<Connection> {
