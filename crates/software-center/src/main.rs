@@ -2738,22 +2738,6 @@ fn clear_list(list: &gtk::ListBox) {
     }
 }
 
-fn add_placeholder_page(
-    stack: &gtk::Stack,
-    name: &str,
-    sidebar_title: &str,
-    icon_name: &str,
-    title: &str,
-    description: &str,
-) {
-    let page = adw::StatusPage::builder()
-        .icon_name(icon_name)
-        .title(title)
-        .description(description)
-        .build();
-    add_widget_page(stack, name, sidebar_title, icon_name, &page);
-}
-
 fn add_widget_page<W: IsA<gtk::Widget>>(
     stack: &gtk::Stack,
     name: &str,
