@@ -1,7 +1,7 @@
 use anyhow::Context;
 use genixbit_package_model::{
-    CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
+    CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
+    SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use zbus::{Connection, proxy};
 
@@ -16,6 +16,7 @@ trait PackageManager {
     async fn system_health(&self) -> zbus::Result<SystemHealth>;
     async fn list_installed(&self) -> zbus::Result<Vec<PackageRecord>>;
     async fn check_updates(&self) -> zbus::Result<Vec<UpdateRecord>>;
+    async fn list_approved_services(&self) -> zbus::Result<Vec<ServiceRecord>>;
     async fn package_details(&self, package: &str) -> zbus::Result<PackageDetailRecord>;
     async fn featured_collections(&self) -> zbus::Result<Vec<FeaturedCollection>>;
     async fn search_catalog_page(
@@ -41,6 +42,17 @@ pub async fn load_snapshot() -> anyhow::Result<SystemSnapshot> {
         .system_snapshot()
         .await
         .context("failed to load the system package snapshot")
+}
+
+pub async fn approved_services() -> anyhow::Result<Vec<ServiceRecord>> {
+    let connection = connect().await?;
+    let proxy = PackageManagerProxy::new(&connection)
+        .await
+        .context("failed to create package-manager proxy")?;
+    proxy
+        .list_approved_services()
+        .await
+        .context("failed to load approved system services")
 }
 
 pub async fn package_details(package: &str) -> anyhow::Result<PackageDetailRecord> {

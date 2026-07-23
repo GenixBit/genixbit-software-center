@@ -2,6 +2,7 @@ mod activity_filter;
 mod activity_time;
 mod client;
 mod security_view;
+mod service_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -16,13 +17,14 @@ use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records, summarize_reco
 use activity_time::{current_unix_ms, timing_text};
 use adw::prelude::*;
 use genixbit_package_model::{
-    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
+    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
+    SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
 use security_view::{
     ALL_SECURITY_SOURCES, filter_security_updates, security_filters_active, summarize_security,
 };
+use service_view::{service_state_css_class, service_state_label, summarize_services};
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
@@ -49,6 +51,8 @@ struct UiState {
     security_reset: gtk::Button,
     security_status: gtk::Label,
     security_list: gtk::ListBox,
+    services_status: gtk::Label,
+    services_list: gtk::ListBox,
     activity_entry: gtk::SearchEntry,
     activity_operation: gtk::DropDown,
     activity_state: gtk::DropDown,
@@ -207,13 +211,16 @@ fn build_ui(application: &adw::Application) {
         "security-high-symbolic",
         &security_page,
     );
-    add_placeholder_page(
+    let (services_page, services_status, services_list) = build_list_page(
+        "Approved system services",
+        "Inspect read-only state for explicitly approved systemd services.",
+    );
+    add_widget_page(
         &stack,
         "services",
         "Services",
         "system-run-symbolic",
-        "System services",
-        "Inspect and control approved background services through the GenixBit system service.",
+        &services_page,
     );
     add_placeholder_page(
         &stack,
@@ -265,6 +272,8 @@ fn build_ui(application: &adw::Application) {
         security_reset,
         security_status,
         security_list,
+        services_status,
+        services_list,
         activity_entry,
         activity_operation,
         activity_state,
@@ -296,6 +305,7 @@ fn build_ui(application: &adw::Application) {
         refresh.connect_clicked(move |_| {
             start_snapshot_load(&ui);
             start_activity_load(&ui);
+            start_services_load(&ui);
         });
     }
     {
@@ -420,6 +430,7 @@ fn build_ui(application: &adw::Application) {
 
     start_snapshot_load(&ui);
     start_activity_load(&ui);
+    start_services_load(&ui);
     start_featured_collections_load(&ui);
     window.present();
 }
@@ -1110,6 +1121,78 @@ fn render_security(ui: &UiState) {
     }
 }
 
+fn start_services_load(ui: &UiState) {
+    ui.services_status
+        .set_text("Loading approved system services…");
+    clear_list(&ui.services_list);
+
+    let (sender, receiver) = mpsc::channel();
+    thread::spawn(move || {
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(anyhow::Error::from)
+            .and_then(|runtime| runtime.block_on(client::approved_services()));
+        let _ = sender.send(result);
+    });
+
+    let ui = ui.clone();
+    glib::timeout_add_local(Duration::from_millis(100), move || {
+        match receiver.try_recv() {
+            Ok(Ok(services)) => {
+                render_services(&ui, &services);
+                glib::ControlFlow::Break
+            }
+            Ok(Err(error)) => {
+                ui.services_status
+                    .set_text(&format!("Unable to load approved services: {error}"));
+                glib::ControlFlow::Break
+            }
+            Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
+            Err(TryRecvError::Disconnected) => {
+                ui.services_status
+                    .set_text("The approved-service worker stopped unexpectedly.");
+                glib::ControlFlow::Break
+            }
+        }
+    });
+}
+
+fn render_services(ui: &UiState, services: &[ServiceRecord]) {
+    clear_list(&ui.services_list);
+    ui.services_status
+        .set_text(&summarize_services(services).status_text());
+
+    if services.is_empty() {
+        let row = adw::ActionRow::builder()
+            .title("No approved services configured")
+            .subtitle("Configure GENIXPKGD_APPROVED_SERVICES for read-only service inspection.")
+            .build();
+        ui.services_list.append(&row);
+        return;
+    }
+
+    for service in services {
+        let description = if service.description.trim().is_empty() {
+            "No description reported"
+        } else {
+            &service.description
+        };
+        let subtitle = format!(
+            "{} · load {} · {} · unit file {}",
+            description, service.load_state, service.sub_state, service.unit_file_state
+        );
+        let row = adw::ActionRow::builder()
+            .title(&service.name)
+            .subtitle(&subtitle)
+            .build();
+        let badge = gtk::Label::new(Some(service_state_label(service)));
+        badge.add_css_class(service_state_css_class(service));
+        row.add_suffix(&badge);
+        ui.services_list.append(&row);
+    }
+}
+
 fn start_activity_load(ui: &UiState) {
     ui.activity_summary.set_text("Loading activity summary…");
     ui.activity_status
@@ -1778,6 +1861,8 @@ fn render_backend_error(ui: &UiState, message: &str) {
     ui.security_status.set_text(message);
     ui.security_updates.borrow_mut().clear();
     clear_list(&ui.security_list);
+    ui.services_status.set_text(message);
+    clear_list(&ui.services_list);
     ui.activity_summary
         .set_text("Activity summary unavailable.");
     ui.activity_status.set_text(message);
