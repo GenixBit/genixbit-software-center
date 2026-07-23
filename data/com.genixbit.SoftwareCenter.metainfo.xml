@@ -15,6 +15,7 @@
       updates, security information, software stacks and portable system profiles.
     </p>
   </description>
+  <icon type="stock">com.genixbit.SoftwareCenter</icon>
   <launchable type="desktop-id">com.genixbit.SoftwareCenter.desktop</launchable>
   <provides>
     <binary>genixbit-software-center</binary>

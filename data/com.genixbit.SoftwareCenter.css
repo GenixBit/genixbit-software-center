@@ -1,0 +1,115 @@
+@define-color genixbit_accent #5b5bd6;
+@define-color genixbit_accent_alt #7c3aed;
+@define-color genixbit_success #16804a;
+@define-color genixbit_warning #a15c00;
+@define-color genixbit_error #c01c28;
+@define-color genixbit_surface alpha(@window_fg_color, 0.045);
+@define-color genixbit_border alpha(@window_fg_color, 0.12);
+
+window.background {
+  background-image: linear-gradient(to bottom right, alpha(@genixbit_accent, 0.035), transparent 38%);
+}
+
+headerbar {
+  border-bottom: 1px solid @genixbit_border;
+}
+
+.genixbit-brand-title {
+  font-weight: 800;
+  font-size: 1.35rem;
+}
+
+.genixbit-brand-subtitle {
+  opacity: 0.72;
+}
+
+.genixbit-card,
+.boxed-list {
+  border-radius: 14px;
+  border: 1px solid @genixbit_border;
+  background-color: @genixbit_surface;
+}
+
+.genixbit-card {
+  padding: 12px;
+}
+
+stacksidebar list {
+  padding: 8px;
+}
+
+stacksidebar row {
+  border-radius: 10px;
+  margin: 2px 0;
+}
+
+stacksidebar row:selected {
+  background-color: alpha(@genixbit_accent, 0.16);
+}
+
+.genixbit-status-success,
+label.success {
+  color: @genixbit_success;
+}
+
+.genixbit-status-warning {
+  color: @genixbit_warning;
+}
+
+.genixbit-status-error,
+label.error {
+  color: @genixbit_error;
+}
+
+.genixbit-status-success,
+.genixbit-status-warning,
+.genixbit-status-error,
+.genixbit-accent,
+label.success,
+label.error,
+label.accent,
+label.dim-label {
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-weight: 700;
+}
+
+.genixbit-status-success,
+label.success {
+  background-color: alpha(@genixbit_success, 0.14);
+}
+
+.genixbit-status-warning {
+  background-color: alpha(@genixbit_warning, 0.14);
+}
+
+.genixbit-status-error,
+label.error {
+  background-color: alpha(@genixbit_error, 0.14);
+}
+
+.genixbit-accent,
+label.accent {
+  color: @genixbit_accent;
+  background-color: alpha(@genixbit_accent, 0.14);
+}
+
+label.dim-label {
+  color: alpha(@window_fg_color, 0.72);
+  background-color: alpha(@window_fg_color, 0.07);
+}
+
+progressbar trough {
+  min-height: 8px;
+  border-radius: 999px;
+  background-color: alpha(@window_fg_color, 0.10);
+}
+
+progressbar progress {
+  border-radius: 999px;
+  background-image: linear-gradient(to right, @genixbit_accent, @genixbit_accent_alt);
+}
+
+button.suggested-action {
+  background-image: linear-gradient(to right, @genixbit_accent, @genixbit_accent_alt);
+}
