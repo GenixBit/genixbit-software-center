@@ -1,3 +1,4 @@
+mod accessibility;
 mod activity_filter;
 mod activity_time;
 mod client;
@@ -155,10 +156,8 @@ fn build_ui(application: &adw::Application) {
     window_title.add_css_class("genixbit-brand-title");
     header.set_title_widget(Some(&window_title));
 
-    let refresh = gtk::Button::builder()
-        .icon_name("view-refresh-symbolic")
-        .tooltip_text("Refresh package metadata")
-        .build();
+    let refresh = gtk::Button::with_mnemonic("_Refresh");
+    refresh.set_tooltip_text(Some("Refresh all local metadata (Ctrl+R)"));
     header.pack_end(&refresh);
 
     let stack = gtk::Stack::builder()
@@ -385,6 +384,20 @@ fn build_ui(application: &adw::Application) {
         catalog_total: Rc::new(Cell::new(0)),
         catalog_has_more: Rc::new(Cell::new(false)),
     };
+
+    accessibility::install_actions(
+        application,
+        &stack,
+        &refresh,
+        vec![
+            ("discover", ui.discover_entry.clone()),
+            ("installed", ui.installed_entry.clone()),
+            ("activity", ui.activity_entry.clone()),
+            ("stacks", ui.stacks_entry.clone()),
+            ("security", ui.security_entry.clone()),
+            ("services", ui.services_entry.clone()),
+        ],
+    );
 
     {
         let ui = ui.clone();
