@@ -33,7 +33,7 @@ use service_view::{
 };
 use stack_view::{
     ALL_STACK_CATEGORIES, SoftwareStack, filter_stacks, filters_active as stack_filters_active,
-    installed_names, software_stacks, stack_status,
+    installed_names, stack_status,
 };
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
