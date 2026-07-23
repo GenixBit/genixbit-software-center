@@ -81,6 +81,8 @@ Remaining Phase 2 completion criteria:
 
 Software Stacks currently reports curated package roles and installed progress from the local snapshot only; installation controls remain disabled.
 
+System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,000-package parsing limit.
+
 ## Phase 5 — GenixBit OS integration
 
 - [ ] Branded icon and design tokens
