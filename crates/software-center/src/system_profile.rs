@@ -51,7 +51,8 @@ impl ProfileComparison {
             return "The imported profile matches the current installed-package state.".to_owned();
         }
         format!(
-            "Restore preview: {} installs, {} removals, {} version changes and {} protected extra packages. No changes will be executed.",
+            "Restore preview: {} executable actions — {} installs, {} removals and {} version changes — plus {} protected extra packages. No changes will be executed.",
+            self.action_count(),
             self.install_missing.len(),
             self.remove_extra.len(),
             self.version_changes.len(),
