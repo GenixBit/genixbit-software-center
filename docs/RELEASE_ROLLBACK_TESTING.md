@@ -22,7 +22,7 @@ The source gate verifies:
 - all source-controlled runtime assets required by the release contract; and
 - a rollback policy that retains at least one previous release, remains within the current major version and forbids automatic rollback.
 
-CI also runs `cargo build --workspace --release --locked`, so the exact locked dependency graph must produce release-mode binaries.
+CI also runs `cargo build --workspace --release --locked`, so the exact locked dependency graph must produce release-mode binaries. A release candidate is not eligible for publication until this source gate and the complete workspace CI pipeline both pass on the same commit.
 
 ## Staged bundle manifests
 
