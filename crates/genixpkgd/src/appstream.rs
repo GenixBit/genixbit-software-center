@@ -149,7 +149,7 @@ fn curate_applications(
         .into_iter()
         .filter_map(|app| {
             let key = format!("{}\0{}", app.id, app.package);
-            seen.insert(key).then(|| app.clone())
+            seen.insert(key).then_some(app.clone())
         })
         .take(CURATED_APPS_PER_COLLECTION)
         .collect()
