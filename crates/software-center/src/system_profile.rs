@@ -177,10 +177,13 @@ pub fn compare_profile(current: &[PackageRecord], profile: &SystemProfile) -> Pr
 
 fn encode_field(value: &str) -> String {
     let mut output = String::new();
-    for byte in value.as_bytes() {
-        match byte {
-            b'%' | b'\t' | b'\n' | b'\r' => output.push_str(&format!("%{byte:02X}")),
-            _ => output.push(*byte as char),
+    for character in value.chars() {
+        match character {
+            '%' => output.push_str("%25"),
+            '\t' => output.push_str("%09"),
+            '\n' => output.push_str("%0A"),
+            '\r' => output.push_str("%0D"),
+            _ => output.push(character),
         }
     }
     output
@@ -293,7 +296,14 @@ mod tests {
     #[test]
     fn rejects_bad_header_duplicate_and_invalid_escape() {
         assert!(SystemProfile::parse("wrong\n").is_err());
-        assert!(SystemProfile::parse("GENIXBIT-SYSTEM-PROFILE\t1\nP\ta\t1\tall\tutils\nP\ta\t2\tall\tutils\n").is_err());
-        assert!(SystemProfile::parse("GENIXBIT-SYSTEM-PROFILE\t1\nP\ta%ZZ\t1\tall\tutils\n").is_err());
+        assert!(
+            SystemProfile::parse(
+                "GENIXBIT-SYSTEM-PROFILE\t1\nP\ta\t1\tall\tutils\nP\ta\t2\tall\tutils\n"
+            )
+            .is_err()
+        );
+        assert!(
+            SystemProfile::parse("GENIXBIT-SYSTEM-PROFILE\t1\nP\ta%ZZ\t1\tall\tutils\n").is_err()
+        );
     }
 }

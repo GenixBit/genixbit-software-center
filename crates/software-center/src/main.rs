@@ -7,6 +7,7 @@ mod security_view;
 mod service_view;
 mod settings;
 mod stack_view;
+mod system_profile;
 
 use std::{
     cell::{Cell, RefCell},
@@ -39,6 +40,7 @@ use stack_view::{
     ALL_STACK_CATEGORIES, SoftwareStack, filter_stacks, filters_active as stack_filters_active,
     installed_names, stack_status,
 };
+use system_profile::{ProfileComparison, SystemProfile, compare_profile};
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
@@ -94,6 +96,7 @@ struct UiState {
     settings_offline: gtk::Switch,
     settings_startup_refresh: gtk::Switch,
     settings_status: gtk::Label,
+    profiles_status: gtk::Label,
     settings: Rc<RefCell<AppSettings>>,
     settings_path: Option<std::path::PathBuf>,
     packages: Rc<RefCell<Vec<PackageRecord>>>,
@@ -259,13 +262,13 @@ fn build_ui(application: &adw::Application) {
         "system-run-symbolic",
         &services_page,
     );
-    add_placeholder_page(
+    let (profiles_page, profiles_export, profiles_compare, profiles_status) = build_profiles_page();
+    add_widget_page(
         &stack,
         "profiles",
         "System Profiles",
         "document-save-symbolic",
-        "Portable system profiles",
-        "Export, compare and restore software configurations across GenixBit OS devices.",
+        &profiles_page,
     );
     let (settings_page, settings_offline, settings_startup_refresh, settings_status) =
         build_settings_page(&loaded_settings, settings_path.as_deref());
@@ -347,6 +350,7 @@ fn build_ui(application: &adw::Application) {
         settings_offline,
         settings_startup_refresh,
         settings_status,
+        profiles_status,
         settings: Rc::new(RefCell::new(loaded_settings)),
         settings_path,
         packages: Rc::new(RefCell::new(Vec::new())),
@@ -369,6 +373,14 @@ fn build_ui(application: &adw::Application) {
             start_services_load(&ui);
             start_curated_catalogue_load(&ui);
         });
+    }
+    {
+        let ui = ui.clone();
+        profiles_export.connect_clicked(move |_| show_profile_export(&ui));
+    }
+    {
+        let ui = ui.clone();
+        profiles_compare.connect_clicked(move |_| show_profile_compare(&ui));
     }
     {
         let ui = ui.clone();
@@ -959,6 +971,60 @@ fn build_stacks_page() -> (
     (page, entry, category, reset, status, list)
 }
 
+fn build_profiles_page() -> (gtk::Box, gtk::Button, gtk::Button, gtk::Label) {
+    let page = page_box();
+    append_page_heading(
+        &page,
+        "Portable system profiles",
+        "Export installed-package state, compare another profile and review a fail-closed restore plan.",
+    );
+
+    let status = gtk::Label::new(Some("Load installed-package metadata to create a profile."));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    page.append(&status);
+
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let export = gtk::Button::with_label("Export current profile");
+    export.set_tooltip_text(Some(
+        "Open a copyable deterministic profile for this system",
+    ));
+    let compare = gtk::Button::with_label("Compare or preview restore");
+    compare.set_tooltip_text(Some(
+        "Paste a GenixBit profile and review differences without executing changes",
+    ));
+    actions.append(&export);
+    actions.append(&compare);
+    page.append(&actions);
+
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let export_row = adw::ActionRow::builder()
+        .title("Deterministic export")
+        .subtitle("Package name, installed version, architecture and section are encoded in a bounded text format.")
+        .build();
+    list.append(&export_row);
+    let compare_row = adw::ActionRow::builder()
+        .title("Comparison")
+        .subtitle(
+            "Reports missing, extra and version-different packages in stable package-name order.",
+        )
+        .build();
+    list.append(&compare_row);
+    let restore_row = adw::ActionRow::builder()
+        .title("Restore preview")
+        .subtitle("Essential packages are protected and all proposed changes remain informational.")
+        .build();
+    let badge = gtk::Label::new(Some("Execution disabled"));
+    badge.add_css_class("success");
+    restore_row.add_suffix(&badge);
+    list.append(&restore_row);
+    page.append(&list);
+
+    (page, export, compare, status)
+}
+
 fn build_settings_page(
     settings: &AppSettings,
     path: Option<&std::path::Path>,
@@ -1115,6 +1181,7 @@ fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     render_dashboard(ui);
     render_installed(ui);
     render_stacks(ui);
+    render_profiles_status(ui);
     *ui.security_updates.borrow_mut() = snapshot.updates.clone();
     populate_security_sources(ui);
     render_updates(ui, &snapshot.updates);
@@ -2400,6 +2467,202 @@ fn format_size(size_kib: u64) -> String {
     }
 }
 
+fn render_profiles_status(ui: &UiState) {
+    let count = ui.packages.borrow().len();
+    if count == 0 {
+        ui.profiles_status
+            .set_text("No installed-package metadata is currently available for profile export.");
+    } else {
+        ui.profiles_status.set_text(&format!(
+            "{} installed packages are available for deterministic profile export and comparison.",
+            count
+        ));
+    }
+}
+
+fn show_profile_export(ui: &UiState) {
+    let profile = SystemProfile::from_packages(&ui.packages.borrow());
+    let text = gtk::TextView::new();
+    text.set_editable(false);
+    text.set_cursor_visible(false);
+    text.set_monospace(true);
+    text.set_wrap_mode(gtk::WrapMode::None);
+    text.buffer().set_text(&profile.serialize());
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    let status = gtk::Label::new(Some(&format!(
+        "Copy this bounded profile text to move {} package records between GenixBit OS devices.",
+        profile.packages.len()
+    )));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    content.append(&status);
+    content.append(
+        &gtk::ScrolledWindow::builder()
+            .hexpand(true)
+            .vexpand(true)
+            .child(&text)
+            .build(),
+    );
+
+    adw::Window::builder()
+        .title("Export system profile")
+        .transient_for(&ui.window)
+        .modal(true)
+        .default_width(820)
+        .default_height(680)
+        .content(&content)
+        .build()
+        .present();
+}
+
+fn show_profile_compare(ui: &UiState) {
+    let editor = gtk::TextView::new();
+    editor.set_monospace(true);
+    editor.set_wrap_mode(gtk::WrapMode::None);
+    editor.set_tooltip_text(Some("Paste a GenixBit system profile here"));
+
+    let status = gtk::Label::new(Some(
+        "Paste a GenixBit profile, then generate a read-only comparison and restore preview.",
+    ));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    let results = gtk::ListBox::new();
+    results.set_selection_mode(gtk::SelectionMode::None);
+    results.add_css_class("boxed-list");
+    let compare = gtk::Button::with_label("Generate restore preview");
+
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    content.append(&status);
+    content.append(
+        &gtk::ScrolledWindow::builder()
+            .hexpand(true)
+            .min_content_height(220)
+            .child(&editor)
+            .build(),
+    );
+    content.append(&compare);
+    content.append(
+        &gtk::ScrolledWindow::builder()
+            .hexpand(true)
+            .vexpand(true)
+            .child(&results)
+            .build(),
+    );
+
+    let current_packages = ui.packages.clone();
+    let editor_for_compare = editor.clone();
+    let status_for_compare = status.clone();
+    let results_for_compare = results.clone();
+    compare.connect_clicked(move |_| {
+        let buffer = editor_for_compare.buffer();
+        let (start, end) = buffer.bounds();
+        let input = buffer.text(&start, &end, true);
+        match SystemProfile::parse(input.as_str()) {
+            Ok(profile) => {
+                let comparison = compare_profile(&current_packages.borrow(), &profile);
+                render_profile_comparison(&status_for_compare, &results_for_compare, &comparison);
+            }
+            Err(error) => {
+                clear_list(&results_for_compare);
+                status_for_compare.set_text(&format!("Unable to parse profile: {error}"));
+            }
+        }
+    });
+
+    adw::Window::builder()
+        .title("Compare system profile")
+        .transient_for(&ui.window)
+        .modal(true)
+        .default_width(860)
+        .default_height(760)
+        .content(&content)
+        .build()
+        .present();
+}
+
+fn render_profile_comparison(
+    status: &gtk::Label,
+    list: &gtk::ListBox,
+    comparison: &ProfileComparison,
+) {
+    clear_list(list);
+    status.set_text(&comparison.status_text());
+    if comparison.is_identical() {
+        let row = adw::ActionRow::builder()
+            .title("Profile matches this system")
+            .subtitle("No restore actions are required.")
+            .build();
+        let badge = gtk::Label::new(Some("Identical"));
+        badge.add_css_class("success");
+        row.add_suffix(&badge);
+        list.append(&row);
+        return;
+    }
+
+    for package in &comparison.install_missing {
+        append_profile_action_row(
+            list,
+            package,
+            "Missing from this system",
+            "Install preview",
+            "accent",
+        );
+    }
+    for change in &comparison.version_changes {
+        append_profile_action_row(
+            list,
+            &change.name,
+            &format!("{} → {}", change.current_version, change.profile_version),
+            "Version preview",
+            "accent",
+        );
+    }
+    for package in &comparison.remove_extra {
+        append_profile_action_row(
+            list,
+            package,
+            "Not present in imported profile",
+            "Remove preview",
+            "error",
+        );
+    }
+    for package in &comparison.protected_extra {
+        append_profile_action_row(
+            list,
+            package,
+            "Essential package omitted by imported profile; removal is blocked",
+            "Protected",
+            "success",
+        );
+    }
+}
+
+fn append_profile_action_row(
+    list: &gtk::ListBox,
+    package: &str,
+    subtitle: &str,
+    badge_text: &str,
+    badge_class: &str,
+) {
+    let row = adw::ActionRow::builder()
+        .title(package)
+        .subtitle(subtitle)
+        .build();
+    let badge = gtk::Label::new(Some(badge_text));
+    badge.add_css_class(badge_class);
+    row.add_suffix(&badge);
+    list.append(&row);
+}
+
 fn persist_and_render_settings(ui: &UiState) {
     let settings = ui.settings.borrow().clone();
     let error = ui
@@ -2432,6 +2695,7 @@ fn render_startup_refresh_disabled(ui: &UiState) {
     ui.security_status.set_text(message);
     ui.services_status.set_text(message);
     ui.stacks_status.set_text(message);
+    ui.profiles_status.set_text(message);
     ui.activity_summary.set_text("Activity summary not loaded.");
     ui.activity_status.set_text(message);
     ui.discover_status.set_text(message);
@@ -2458,6 +2722,7 @@ fn render_backend_error(ui: &UiState, message: &str) {
     ui.services_status.set_text(message);
     ui.services.borrow_mut().clear();
     ui.stacks_status.set_text(message);
+    ui.profiles_status.set_text(message);
     clear_list(&ui.stacks_list);
     clear_list(&ui.services_list);
     ui.activity_summary
