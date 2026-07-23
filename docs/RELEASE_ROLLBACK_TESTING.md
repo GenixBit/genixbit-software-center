@@ -54,6 +54,8 @@ python3 scripts/validate-release-rollback.py pair \
 
 The pair gate checks exact file inventories and SHA-256 digests, rejects unmanifested or writable files, requires stable package/application/service identities, requires matching architectures, and requires the rollback version to be older while remaining within the current major version.
 
+Every validator mode is read-only with respect to package and service state. Manifest generation writes only the explicitly requested output file outside the staged payload.
+
 ## Security boundary
 
 This milestone validates release construction and rollback readiness. It does not install, remove, upgrade, downgrade or refresh packages and it never controls services. A rollback remains a distribution-operator action performed through the authenticated GenixBit OS package pipeline after separate image-level testing. The Software Center's package-changing operations remain fail-closed.
