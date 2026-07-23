@@ -20,13 +20,7 @@ jobs:
         with:
           components: rustfmt
       - name: Remove unused import
-        run: python3 - <<'PY'
-          from pathlib import Path
-          path = Path('crates/software-center/src/main.rs')
-          text = path.read_text()
-          text = text.replace('    installed_names, software_stacks, stack_status,\n', '    installed_names, stack_status,\n')
-          path.write_text(text)
-          PY
+        run: perl -0pi -e 's/    installed_names, software_stacks, stack_status,/    installed_names, stack_status,/' crates/software-center/src/main.rs
       - run: cargo fmt --all
       - name: Commit fix and remove workflow
         run: |
