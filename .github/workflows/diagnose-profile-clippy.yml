@@ -1,4 +1,4 @@
-name: Diagnose profile Clippy
+name: Clean profile diagnostic
 
 on:
   pull_request:
@@ -9,26 +9,49 @@ permissions:
   contents: write
 
 jobs:
-  diagnose:
+  cleanup:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/system-profiles-preview
-      - name: Install native dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libdbus-1-dev
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
-      - name: Capture Clippy diagnostic
-        run: cargo clippy --workspace --all-targets -- -D warnings > clippy-profile-diagnostic.txt 2>&1 || true
-      - name: Commit diagnostic
+          components: rustfmt
+      - name: Remove obsolete placeholder helper
         run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("crates/software-center/src/main.rs")
+          text = path.read_text()
+          old = '''fn add_placeholder_page(
+              stack: &gtk::Stack,
+              name: &str,
+              sidebar_title: &str,
+              icon_name: &str,
+              title: &str,
+              description: &str,
+          ) {
+              let page = adw::StatusPage::builder()
+                  .icon_name(icon_name)
+                  .title(title)
+                  .description(description)
+                  .build();
+              add_widget_page(stack, name, sidebar_title, icon_name, &page);
+          }
+
+          '''
+          if text.count(old) != 1:
+              raise SystemExit("main.rs: placeholder helper marker mismatch")
+          path.write_text(text.replace(old, "", 1))
+          PY
+      - run: cargo fmt --all
+      - name: Commit cleanup
+        run: |
+          rm .github/workflows/diagnose-profile-clippy.yml clippy-profile-diagnostic.txt
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add clippy-profile-diagnostic.txt
-          git commit -m "chore: capture profile Clippy diagnostic"
+          git add crates/software-center/src/main.rs .github/workflows/diagnose-profile-clippy.yml clippy-profile-diagnostic.txt
+          git commit -m "chore: remove obsolete profile diagnostics"
           git push origin HEAD:feat/system-profiles-preview
