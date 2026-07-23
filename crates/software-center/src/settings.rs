@@ -56,10 +56,10 @@ impl AppSettings {
     }
 
     pub fn policy_text(&self) -> String {
-        let network = if self.offline_mode {
-            "External network providers are blocked; local system metadata remains available."
-        } else {
+        let network = if self.external_network_allowed() {
             "External providers may be used when a future feature explicitly configures one."
+        } else {
+            "External network providers are blocked; local system metadata remains available."
         };
         let startup = if self.refresh_on_startup {
             "Local metadata refreshes automatically when the application starts."
