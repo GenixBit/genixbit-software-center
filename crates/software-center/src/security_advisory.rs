@@ -40,6 +40,7 @@ pub fn advisory_for_update(update: &UpdateRecord) -> Option<SecurityAdvisory> {
     })
 }
 
+#[cfg(test)]
 pub fn security_advisories(updates: &[UpdateRecord]) -> Vec<SecurityAdvisory> {
     updates.iter().filter_map(advisory_for_update).collect()
 }
