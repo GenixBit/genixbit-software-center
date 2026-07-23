@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 
@@ -11,6 +12,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "validate-repository-
 SPEC = importlib.util.spec_from_file_location("repository_signing", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 repository_signing = importlib.util.module_from_spec(SPEC)
+sys.modules[SPEC.name] = repository_signing
 SPEC.loader.exec_module(repository_signing)
 
 
