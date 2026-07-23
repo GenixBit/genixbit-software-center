@@ -38,13 +38,7 @@ mod tests {
 
     use super::{ALL_OPERATIONS, ALL_STATES, filter_records};
 
-    fn record(
-        id: u64,
-        kind: &str,
-        package: &str,
-        state: &str,
-        message: &str,
-    ) -> TransactionRecord {
+    fn record(id: u64, kind: &str, package: &str, state: &str, message: &str) -> TransactionRecord {
         TransactionRecord {
             id,
             preview_id: id,
