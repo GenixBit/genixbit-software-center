@@ -79,6 +79,8 @@ Remaining Phase 2 completion criteria:
 - [x] Read-only transaction Activity history page
 - [ ] Settings and offline controls
 
+Software Stacks currently reports curated package roles and installed progress from the local snapshot only; installation controls remain disabled.
+
 ## Phase 5 — GenixBit OS integration
 
 - [ ] Branded icon and design tokens
