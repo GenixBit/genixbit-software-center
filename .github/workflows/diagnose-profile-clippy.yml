@@ -1,0 +1,34 @@
+name: Diagnose profile Clippy
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  diagnose:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/system-profiles-preview
+      - name: Install native dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libadwaita-1-dev libdbus-1-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Capture Clippy diagnostic
+        run: cargo clippy --workspace --all-targets -- -D warnings > clippy-profile-diagnostic.txt 2>&1 || true
+      - name: Commit diagnostic
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add clippy-profile-diagnostic.txt
+          git commit -m "chore: capture profile Clippy diagnostic"
+          git push origin HEAD:feat/system-profiles-preview
