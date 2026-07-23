@@ -70,7 +70,7 @@ Remaining Phase 2 completion criteria:
 
 ## Phase 4 — Product features
 
-- [ ] Full dashboard
+- [x] Full dashboard
 - [ ] Curated Discover catalogue
 - [ ] Software Stacks
 - [ ] Security advisories
