@@ -122,7 +122,10 @@ mod tests {
             "-ssh.service",
             "/tmp/ssh.service",
         ] {
-            assert!(validate_service_unit(invalid).is_err(), "accepted {invalid}");
+            assert!(
+                validate_service_unit(invalid).is_err(),
+                "accepted {invalid}"
+            );
         }
     }
 
