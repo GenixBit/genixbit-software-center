@@ -5,6 +5,25 @@ pub const ALL_OPERATIONS: &str = "All operations";
 /// User-facing selector value that disables state filtering.
 pub const ALL_STATES: &str = "All states";
 
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ActivitySummary {
+    pub total: usize,
+    pub active: usize,
+    pub completed: usize,
+    pub failed: usize,
+    pub cancelled: usize,
+    pub interrupted: usize,
+}
+
+impl ActivitySummary {
+    pub fn status_text(self) -> String {
+        format!(
+            "{} recorded · {} active · {} completed · {} failed · {} cancelled · {} interrupted",
+            self.total, self.active, self.completed, self.failed, self.cancelled, self.interrupted
+        )
+    }
+}
+
 /// Returns matching records without changing their existing newest-first order.
 pub fn filter_records<'a>(
     records: &'a [TransactionRecord],
@@ -35,11 +54,31 @@ pub fn filter_records<'a>(
         .collect()
 }
 
+pub fn summarize_records(records: &[TransactionRecord]) -> ActivitySummary {
+    let mut summary = ActivitySummary {
+        total: records.len(),
+        ..ActivitySummary::default()
+    };
+
+    for record in records {
+        match record.state.as_str() {
+            "queued" | "running" => summary.active += 1,
+            "completed" => summary.completed += 1,
+            "failed" => summary.failed += 1,
+            "cancelled" => summary.cancelled += 1,
+            "interrupted" => summary.interrupted += 1,
+            _ => {}
+        }
+    }
+
+    summary
+}
+
 #[cfg(test)]
 mod tests {
     use genixbit_package_model::TransactionRecord;
 
-    use super::{ALL_OPERATIONS, ALL_STATES, filter_records};
+    use super::{ALL_OPERATIONS, ALL_STATES, ActivitySummary, filter_records, summarize_records};
 
     fn record(id: u64, kind: &str, package: &str, state: &str, message: &str) -> TransactionRecord {
         TransactionRecord {
@@ -106,6 +145,48 @@ mod tests {
         assert_eq!(
             filter_records(&records, "", ALL_OPERATIONS, ALL_STATES),
             records.iter().collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn summarizes_known_transaction_states() {
+        let records = [
+            record(1, "install", "a", "queued", "queued"),
+            record(2, "install", "b", "running", "running"),
+            record(3, "install", "c", "completed", "completed"),
+            record(4, "install", "d", "failed", "failed"),
+            record(5, "install", "e", "cancelled", "cancelled"),
+            record(6, "install", "f", "interrupted", "interrupted"),
+            record(7, "install", "g", "unknown", "unknown"),
+        ];
+
+        assert_eq!(
+            summarize_records(&records),
+            ActivitySummary {
+                total: 7,
+                active: 2,
+                completed: 1,
+                failed: 1,
+                cancelled: 1,
+                interrupted: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn formats_summary_status_text() {
+        let summary = ActivitySummary {
+            total: 12,
+            active: 2,
+            completed: 5,
+            failed: 2,
+            cancelled: 1,
+            interrupted: 2,
+        };
+
+        assert_eq!(
+            summary.status_text(),
+            "12 recorded · 2 active · 5 completed · 2 failed · 1 cancelled · 2 interrupted"
         );
     }
 }

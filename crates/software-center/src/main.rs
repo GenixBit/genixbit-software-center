@@ -10,7 +10,7 @@ use std::{
     time::Duration,
 };
 
-use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records};
+use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records, summarize_records};
 use adw::prelude::*;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
@@ -41,6 +41,8 @@ struct UiState {
     activity_entry: gtk::SearchEntry,
     activity_operation: gtk::DropDown,
     activity_state: gtk::DropDown,
+    activity_reset: gtk::Button,
+    activity_summary: gtk::Label,
     activity_status: gtk::Label,
     activity_list: gtk::ListBox,
     discover_entry: gtk::SearchEntry,
@@ -157,6 +159,8 @@ fn build_ui(application: &adw::Application) {
         activity_entry,
         activity_operation,
         activity_state,
+        activity_reset,
+        activity_summary,
         activity_status,
         activity_list,
     ) = build_activity_page();
@@ -240,6 +244,8 @@ fn build_ui(application: &adw::Application) {
         activity_entry,
         activity_operation,
         activity_state,
+        activity_reset,
+        activity_summary,
         activity_status,
         activity_list,
         discover_entry,
@@ -284,6 +290,15 @@ fn build_ui(application: &adw::Application) {
         ui.activity_state
             .clone()
             .connect_selected_notify(move |_| render_activity(&ui));
+    }
+    {
+        let ui = ui.clone();
+        ui.activity_reset.clone().connect_clicked(move |_| {
+            ui.activity_entry.set_text("");
+            ui.activity_operation.set_selected(0);
+            ui.activity_state.set_selected(0);
+            render_activity(&ui);
+        });
     }
     {
         let ui = ui.clone();
@@ -549,6 +564,8 @@ fn build_activity_page() -> (
     gtk::SearchEntry,
     gtk::DropDown,
     gtk::DropDown,
+    gtk::Button,
+    gtk::Label,
     gtk::Label,
     gtk::ListBox,
 ) {
@@ -576,10 +593,20 @@ fn build_activity_page() -> (
         "Interrupted",
     ]);
     state.set_tooltip_text(Some("Filter by latest transaction state"));
+    let reset = gtk::Button::with_label("Clear filters");
+    reset.set_tooltip_text(Some("Clear all Activity filters"));
+    reset.set_sensitive(false);
     filters.append(&entry);
     filters.append(&operation);
     filters.append(&state);
+    filters.append(&reset);
     page.append(&filters);
+
+    let summary = gtk::Label::new(Some("Loading activity summary…"));
+    summary.set_xalign(0.0);
+    summary.set_wrap(true);
+    summary.add_css_class("dim-label");
+    page.append(&summary);
 
     let status = gtk::Label::new(Some("Loading recent transaction activity…"));
     status.set_xalign(0.0);
@@ -596,7 +623,7 @@ fn build_activity_page() -> (
         .build();
     page.append(&scrolled);
 
-    (page, entry, operation, state, status, list)
+    (page, entry, operation, state, reset, summary, status, list)
 }
 
 fn build_list_page(
@@ -922,6 +949,7 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
 }
 
 fn start_activity_load(ui: &UiState) {
+    ui.activity_summary.set_text("Loading activity summary…");
     ui.activity_status
         .set_text("Loading recent package transaction activity…");
     ui.activity_records.borrow_mut().clear();
@@ -946,12 +974,16 @@ fn start_activity_load(ui: &UiState) {
                 glib::ControlFlow::Break
             }
             Ok(Err(error)) => {
+                ui.activity_summary
+                    .set_text("Activity summary unavailable.");
                 ui.activity_status
                     .set_text(&format!("Unable to load transaction activity: {error}"));
                 glib::ControlFlow::Break
             }
             Err(TryRecvError::Empty) => glib::ControlFlow::Continue,
             Err(TryRecvError::Disconnected) => {
+                ui.activity_summary
+                    .set_text("Activity summary unavailable.");
                 ui.activity_status
                     .set_text("The transaction activity worker stopped unexpectedly.");
                 glib::ControlFlow::Break
@@ -966,13 +998,21 @@ fn render_activity(ui: &UiState) {
     let operation = selected_text(&ui.activity_operation);
     let state = selected_text(&ui.activity_state);
     let records = ui.activity_records.borrow();
+    ui.activity_reset.set_sensitive(
+        !query.trim().is_empty()
+            || ui.activity_operation.selected() != 0
+            || ui.activity_state.selected() != 0,
+    );
 
     if records.is_empty() {
+        ui.activity_summary.set_text("No recorded transactions.");
         ui.activity_status
             .set_text("No package transaction activity has been recorded.");
         return;
     }
 
+    ui.activity_summary
+        .set_text(&summarize_records(&records).status_text());
     let filtered = filter_records(&records, query.as_str(), &operation, &state);
     if filtered.is_empty() {
         ui.activity_status
@@ -1565,6 +1605,8 @@ fn render_backend_error(ui: &UiState, message: &str) {
         .set_text(&format!("Package service unavailable: {message}"));
     ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
+    ui.activity_summary
+        .set_text("Activity summary unavailable.");
     ui.activity_status.set_text(message);
     ui.activity_records.borrow_mut().clear();
     clear_list(&ui.activity_list);
