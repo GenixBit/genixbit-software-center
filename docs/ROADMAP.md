@@ -71,7 +71,7 @@ Remaining Phase 2 completion criteria:
 ## Phase 4 — Product features
 
 - [x] Full dashboard
-- [ ] Curated Discover catalogue
+- [x] Curated Discover catalogue
 - [ ] Software Stacks
 - [ ] Security advisories
 - [x] Approved systemd services

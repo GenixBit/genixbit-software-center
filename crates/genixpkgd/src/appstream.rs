@@ -1,11 +1,13 @@
 use std::collections::{BTreeSet, HashSet};
 
 use anyhow::{Context, bail};
-use genixbit_package_model::{AppRecord, CatalogPage, FeaturedCollection};
+use genixbit_package_model::{AppRecord, CatalogPage, CuratedCollection, FeaturedCollection};
 use tokio::process::Command;
 
 const MAX_CATALOG_RESULTS: usize = 500;
 const MAX_PAGE_SIZE: u64 = 100;
+const CURATED_SEARCH_LIMIT: u64 = 40;
+const CURATED_APPS_PER_COLLECTION: usize = 6;
 
 pub async fn is_available() -> bool {
     Command::new("appstreamcli")
@@ -84,6 +86,73 @@ pub fn featured_collections() -> Vec<FeaturedCollection> {
             "applications-internet-symbolic",
         ),
     ]
+}
+
+pub async fn curated_catalog(installed_packages: &HashSet<String>) -> Vec<CuratedCollection> {
+    let mut seen = BTreeSet::new();
+    let mut catalogue = Vec::new();
+
+    for collection in featured_collections() {
+        let applications = match search_page(
+            &collection.query,
+            installed_packages,
+            0,
+            CURATED_SEARCH_LIMIT,
+        )
+        .await
+        {
+            Ok(page) => curate_applications(&collection, &page.applications, &mut seen),
+            Err(error) => {
+                tracing::warn!(
+                    collection = %collection.id,
+                    %error,
+                    "failed to resolve curated AppStream collection"
+                );
+                Vec::new()
+            }
+        };
+
+        catalogue.push(CuratedCollection {
+            id: collection.id,
+            title: collection.title,
+            description: collection.description,
+            query: collection.query,
+            category: collection.category,
+            icon: collection.icon,
+            applications,
+        });
+    }
+
+    catalogue
+}
+
+fn curate_applications(
+    collection: &FeaturedCollection,
+    candidates: &[AppRecord],
+    seen: &mut BTreeSet<String>,
+) -> Vec<AppRecord> {
+    let category = collection.category.to_ascii_lowercase();
+    let mut preferred = candidates
+        .iter()
+        .filter(|app| {
+            app.categories
+                .iter()
+                .any(|value| value.to_ascii_lowercase() == category)
+        })
+        .collect::<Vec<_>>();
+
+    if preferred.is_empty() {
+        preferred = candidates.iter().collect();
+    }
+
+    preferred
+        .into_iter()
+        .filter_map(|app| {
+            let key = format!("{}\0{}", app.id, app.package);
+            seen.insert(key).then_some(app.clone())
+        })
+        .take(CURATED_APPS_PER_COLLECTION)
+        .collect()
 }
 
 pub async fn search(
@@ -271,11 +340,11 @@ fn validate_page(offset: u64, limit: u64) -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashSet;
+    use std::collections::{BTreeSet, HashSet};
 
     use super::{
-        AppRecord, featured_collections, paginate, parse_categories, parse_search, validate_page,
-        validate_query,
+        AppRecord, curate_applications, featured_collections, paginate, parse_categories,
+        parse_search, validate_page, validate_query,
     };
 
     #[test]
@@ -324,6 +393,32 @@ Categories: Utility;TextEditor;
                 && !collection.query.is_empty()
                 && !collection.icon.is_empty()
         }));
+    }
+
+    #[test]
+    fn curates_category_matches_with_stable_global_deduplication() {
+        let collection = featured_collections().remove(0);
+        let candidates = vec![
+            AppRecord {
+                id: "editor.desktop".into(),
+                name: "Editor".into(),
+                package: "editor".into(),
+                categories: vec!["Development".into()],
+                ..AppRecord::default()
+            },
+            AppRecord {
+                id: "music.desktop".into(),
+                name: "Music".into(),
+                package: "music".into(),
+                categories: vec!["AudioVideo".into()],
+                ..AppRecord::default()
+            },
+        ];
+        let mut seen = BTreeSet::new();
+        let curated = curate_applications(&collection, &candidates, &mut seen);
+        assert_eq!(curated.len(), 1);
+        assert_eq!(curated[0].package, "editor");
+        assert!(curate_applications(&collection, &candidates, &mut seen).is_empty());
     }
 
     #[test]

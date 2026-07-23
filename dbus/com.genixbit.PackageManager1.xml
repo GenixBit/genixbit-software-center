@@ -26,6 +26,9 @@
     <method name="FeaturedCollections">
       <arg name="collections" type="a(ssssss)" direction="out"/>
     </method>
+    <method name="CuratedCatalogue">
+      <arg name="collections" type="a(ssssssa(sssssssasb))" direction="out"/>
+    </method>
     <method name="SearchCatalog">
       <arg name="query" type="s" direction="in"/>
       <arg name="applications" type="a(sssssssasb)" direction="out"/>

@@ -19,7 +19,7 @@ use activity_time::{current_unix_ms, timing_text};
 use adw::prelude::*;
 use dashboard_view::summarize_dashboard;
 use genixbit_package_model::{
-    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
+    AppRecord, CatalogPage, CuratedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
     SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
@@ -470,7 +470,7 @@ fn build_ui(application: &adw::Application) {
     start_snapshot_load(&ui);
     start_activity_load(&ui);
     start_services_load(&ui);
-    start_featured_collections_load(&ui);
+    start_curated_catalogue_load(&ui);
     window.present();
 }
 
@@ -1634,14 +1634,14 @@ fn activity_progress_fraction(progress_basis_points: u32) -> Option<f64> {
     }
 }
 
-fn start_featured_collections_load(ui: &UiState) {
+fn start_curated_catalogue_load(ui: &UiState) {
     let (sender, receiver) = mpsc::channel();
     thread::spawn(move || {
         let result = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
             .map_err(anyhow::Error::from)
-            .and_then(|runtime| runtime.block_on(client::featured_collections()));
+            .and_then(|runtime| runtime.block_on(client::curated_catalogue()));
         let _ = sender.send(result);
     });
 
@@ -1649,13 +1649,13 @@ fn start_featured_collections_load(ui: &UiState) {
     glib::timeout_add_local(Duration::from_millis(100), move || {
         match receiver.try_recv() {
             Ok(Ok(collections)) => {
-                render_featured_collections(&ui, &collections);
+                render_curated_catalogue(&ui, &collections);
                 glib::ControlFlow::Break
             }
             Ok(Err(error)) => {
                 clear_list(&ui.discover_collections);
                 let row = adw::ActionRow::builder()
-                    .title("Featured collections unavailable")
+                    .title("Curated catalogue unavailable")
                     .subtitle(error.to_string())
                     .build();
                 ui.discover_collections.append(&row);
@@ -1665,7 +1665,7 @@ fn start_featured_collections_load(ui: &UiState) {
             Err(TryRecvError::Disconnected) => {
                 clear_list(&ui.discover_collections);
                 let row = adw::ActionRow::builder()
-                    .title("Featured collection worker stopped")
+                    .title("Curated catalogue worker stopped")
                     .subtitle("Restart the software center and try again")
                     .build();
                 ui.discover_collections.append(&row);
@@ -1675,28 +1675,82 @@ fn start_featured_collections_load(ui: &UiState) {
     });
 }
 
-fn render_featured_collections(ui: &UiState, collections: &[FeaturedCollection]) {
+fn render_curated_catalogue(ui: &UiState, collections: &[CuratedCollection]) {
     clear_list(&ui.discover_collections);
-    for collection in collections {
+    let application_count = collections
+        .iter()
+        .map(|collection| collection.applications.len())
+        .sum::<usize>();
+    ui.discover_status.set_text(&format!(
+        "{} editorial collections with {} locally indexed application picks. Choose a shelf or search the full catalogue.",
+        collections.len(), application_count
+    ));
+
+    if collections.is_empty() {
         let row = adw::ActionRow::builder()
+            .title("No curated collections available")
+            .subtitle("The local AppStream catalogue did not return editorial shelves.")
+            .build();
+        ui.discover_collections.append(&row);
+        return;
+    }
+
+    for collection in collections {
+        let header = adw::ActionRow::builder()
             .title(&collection.title)
             .subtitle(&collection.description)
             .activatable(true)
             .build();
-        let image = gtk::Image::from_icon_name(&collection.icon);
-        row.add_prefix(&image);
-        if !collection.category.is_empty() {
-            let category = gtk::Label::new(Some(&collection.category));
-            category.add_css_class("dim-label");
-            row.add_suffix(&category);
-        }
+        header.add_prefix(&gtk::Image::from_icon_name(&collection.icon));
+        let count = gtk::Label::new(Some(&format!("{} picks", collection.applications.len())));
+        count.add_css_class("dim-label");
+        header.add_suffix(&count);
         let callback_ui = ui.clone();
         let query = collection.query.clone();
-        row.connect_activated(move |_| {
+        header.connect_activated(move |_| {
             callback_ui.discover_entry.set_text(&query);
             start_catalog_page(&callback_ui, query.clone(), 0);
         });
-        ui.discover_collections.append(&row);
+        ui.discover_collections.append(&header);
+
+        if collection.applications.is_empty() {
+            let row = adw::ActionRow::builder()
+                .title("No matching applications indexed locally")
+                .subtitle(format!(
+                    "Use the {} shelf search to inspect the full local catalogue.",
+                    collection.title
+                ))
+                .build();
+            ui.discover_collections.append(&row);
+            continue;
+        }
+
+        for app in &collection.applications {
+            let subtitle = if app.summary.trim().is_empty() {
+                app.package.clone()
+            } else {
+                format!("{} · {}", app.summary, app.package)
+            };
+            let row = adw::ActionRow::builder()
+                .title(format!("↳ {}", app.name))
+                .subtitle(&subtitle)
+                .activatable(!app.package.is_empty())
+                .build();
+            if !app.icon.is_empty() {
+                row.add_prefix(&gtk::Image::from_icon_name(&app.icon));
+            }
+            if app.installed {
+                let badge = gtk::Label::new(Some("Installed"));
+                badge.add_css_class("success");
+                row.add_suffix(&badge);
+            }
+            if !app.package.is_empty() {
+                let callback_ui = ui.clone();
+                let package = app.package.clone();
+                row.connect_activated(move |_| start_package_details(&callback_ui, &package));
+            }
+            ui.discover_collections.append(&row);
+        }
     }
 }
 

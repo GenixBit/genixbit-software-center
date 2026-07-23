@@ -19,9 +19,9 @@ use anyhow::Context;
 use apt_live::AptSimulationOutcome;
 use authorization::AuthorizationHelper;
 use genixbit_package_model::{
-    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
-    SystemHealth, SystemSnapshot, TransactionEvent, TransactionPreview, TransactionQueueSnapshot,
-    TransactionRecord, UpdateRecord,
+    AppRecord, CatalogPage, CuratedCollection, FeaturedCollection, PackageDetailRecord,
+    PackageRecord, ServiceRecord, SystemHealth, SystemSnapshot, TransactionEvent,
+    TransactionPreview, TransactionQueueSnapshot, TransactionRecord, UpdateRecord,
 };
 use journal::TransactionJournal;
 use simulation_control::SimulationControl;
@@ -231,6 +231,11 @@ impl PackageManager {
 
     async fn featured_collections(&self) -> Vec<FeaturedCollection> {
         appstream::featured_collections()
+    }
+
+    async fn curated_catalogue(&self) -> zbus::fdo::Result<Vec<CuratedCollection>> {
+        let installed_names = self.installed_names().await.map_err(dbus_failed)?;
+        Ok(appstream::curated_catalog(&installed_names).await)
     }
 
     async fn search_catalog(&self, query: &str) -> zbus::fdo::Result<Vec<AppRecord>> {
