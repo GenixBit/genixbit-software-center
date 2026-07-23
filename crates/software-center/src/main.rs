@@ -4,6 +4,7 @@ mod client;
 mod dashboard_view;
 mod security_view;
 mod service_view;
+mod stack_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -29,6 +30,10 @@ use security_view::{
 use service_view::{
     ALL_SERVICE_STATES, filter_services, service_filters_active, service_state_css_class,
     service_state_label, summarize_services,
+};
+use stack_view::{
+    ALL_STACK_CATEGORIES, SoftwareStack, filter_stacks, filters_active as stack_filters_active,
+    installed_names, stack_status,
 };
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
@@ -62,6 +67,11 @@ struct UiState {
     services_reset: gtk::Button,
     services_status: gtk::Label,
     services_list: gtk::ListBox,
+    stacks_entry: gtk::SearchEntry,
+    stacks_category: gtk::DropDown,
+    stacks_reset: gtk::Button,
+    stacks_status: gtk::Label,
+    stacks_list: gtk::ListBox,
     activity_entry: gtk::SearchEntry,
     activity_operation: gtk::DropDown,
     activity_state: gtk::DropDown,
@@ -198,13 +208,14 @@ fn build_ui(application: &adw::Application) {
         &activity_page,
     );
 
-    add_placeholder_page(
+    let (stacks_page, stacks_entry, stacks_category, stacks_reset, stacks_status, stacks_list) =
+        build_stacks_page();
+    add_widget_page(
         &stack,
         "stacks",
         "Software Stacks",
         "view-grid-symbolic",
-        "Software stacks",
-        "Install capability-aware collections for AI, development, design and productivity.",
+        &stacks_page,
     );
     let (
         security_page,
@@ -292,6 +303,11 @@ fn build_ui(application: &adw::Application) {
         services_reset,
         services_status,
         services_list,
+        stacks_entry,
+        stacks_category,
+        stacks_reset,
+        stacks_status,
+        stacks_list,
         activity_entry,
         activity_operation,
         activity_state,
@@ -325,6 +341,26 @@ fn build_ui(application: &adw::Application) {
             start_snapshot_load(&ui);
             start_activity_load(&ui);
             start_services_load(&ui);
+        });
+    }
+    {
+        let ui = ui.clone();
+        ui.stacks_entry
+            .clone()
+            .connect_changed(move |_| render_stacks(&ui));
+    }
+    {
+        let ui = ui.clone();
+        ui.stacks_category
+            .clone()
+            .connect_selected_notify(move |_| render_stacks(&ui));
+    }
+    {
+        let ui = ui.clone();
+        ui.stacks_reset.clone().connect_clicked(move |_| {
+            ui.stacks_entry.set_text("");
+            ui.stacks_category.set_selected(0);
+            render_stacks(&ui);
         });
     }
     {
@@ -825,6 +861,54 @@ fn build_services_page() -> (
     (page, entry, state, reset, status, list)
 }
 
+fn build_stacks_page() -> (
+    gtk::Box,
+    gtk::SearchEntry,
+    gtk::DropDown,
+    gtk::Button,
+    gtk::Label,
+    gtk::ListBox,
+) {
+    let page = page_box();
+    append_page_heading(
+        &page,
+        "Software stacks",
+        "Inspect curated capability bundles and see which packages are already installed. Installation remains disabled.",
+    );
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let entry = gtk::SearchEntry::builder()
+        .placeholder_text("Search stacks, packages or roles…")
+        .hexpand(true)
+        .build();
+    let category = gtk::DropDown::from_strings(&[
+        ALL_STACK_CATEGORIES,
+        "AI",
+        "Development",
+        "Design",
+        "Productivity",
+    ]);
+    let reset = gtk::Button::with_label("Clear filters");
+    reset.set_sensitive(false);
+    filters.append(&entry);
+    filters.append(&category);
+    filters.append(&reset);
+    page.append(&filters);
+    let status = gtk::Label::new(Some("Loading installed package state…"));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    page.append(&status);
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let scrolled = gtk::ScrolledWindow::builder()
+        .hexpand(true)
+        .vexpand(true)
+        .child(&list)
+        .build();
+    page.append(&scrolled);
+    (page, entry, category, reset, status, list)
+}
+
 fn build_list_page(
     title_text: &str,
     description_text: &str,
@@ -914,6 +998,7 @@ fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     *ui.dashboard_health.borrow_mut() = Some(snapshot.health);
     render_dashboard(ui);
     render_installed(ui);
+    render_stacks(ui);
     *ui.security_updates.borrow_mut() = snapshot.updates.clone();
     populate_security_sources(ui);
     render_updates(ui, &snapshot.updates);
@@ -1344,6 +1429,98 @@ fn render_services(ui: &UiState) {
         row.add_suffix(&badge);
         ui.services_list.append(&row);
     }
+}
+
+fn render_stacks(ui: &UiState) {
+    clear_list(&ui.stacks_list);
+    let query = ui.stacks_entry.text();
+    let category = selected_text(&ui.stacks_category);
+    ui.stacks_reset
+        .set_sensitive(stack_filters_active(query.as_str(), &category));
+    let filtered = filter_stacks(query.as_str(), &category);
+    let packages = ui.packages.borrow();
+    let installed = installed_names(&packages);
+    if filtered.is_empty() {
+        ui.stacks_status
+            .set_text("No software stacks match the current filters.");
+        return;
+    }
+    let complete = filtered
+        .iter()
+        .filter(|stack| {
+            let status = stack_status(stack, &installed);
+            status.total > 0 && status.installed == status.total
+        })
+        .count();
+    ui.stacks_status.set_text(&format!(
+        "Showing {} curated stacks; {} complete. Read-only package status only.",
+        filtered.len(),
+        complete
+    ));
+    for stack in filtered {
+        let status = stack_status(stack, &installed);
+        let row = adw::ActionRow::builder()
+            .title(stack.title)
+            .subtitle(format!("{} · {}", stack.category, stack.description))
+            .activatable(true)
+            .build();
+        row.add_prefix(&gtk::Image::from_icon_name(stack.icon));
+        let badge = gtk::Label::new(Some(&status.status_text()));
+        if status.total > 0 && status.installed == status.total {
+            badge.add_css_class("success");
+        } else {
+            badge.add_css_class("dim-label");
+        }
+        row.add_suffix(&badge);
+        let callback_ui = ui.clone();
+        let stack = stack.clone();
+        row.connect_activated(move |_| show_stack_details(&callback_ui, &stack));
+        ui.stacks_list.append(&row);
+    }
+}
+
+fn show_stack_details(ui: &UiState, stack: &SoftwareStack) {
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let packages = ui.packages.borrow();
+    let installed = installed_names(&packages);
+    for package in stack.packages {
+        let is_installed = installed.contains(package.name);
+        let row = adw::ActionRow::builder()
+            .title(package.name)
+            .subtitle(package.role)
+            .activatable(is_installed)
+            .build();
+        let badge = gtk::Label::new(Some(if is_installed { "Installed" } else { "Missing" }));
+        badge.add_css_class(if is_installed { "success" } else { "dim-label" });
+        row.add_suffix(&badge);
+        if is_installed {
+            let callback_ui = ui.clone();
+            let package_name = package.name.to_owned();
+            row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
+        }
+        list.append(&row);
+    }
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+    let description = gtk::Label::new(Some(stack.description));
+    description.set_xalign(0.0);
+    description.set_wrap(true);
+    content.append(&description);
+    content.append(&list);
+    let window = adw::Window::builder()
+        .title(stack.title)
+        .default_width(640)
+        .default_height(520)
+        .transient_for(&ui.window)
+        .modal(true)
+        .content(&content)
+        .build();
+    window.present();
 }
 
 fn start_activity_load(ui: &UiState) {
@@ -2072,6 +2249,8 @@ fn render_backend_error(ui: &UiState, message: &str) {
     clear_list(&ui.security_list);
     ui.services_status.set_text(message);
     ui.services.borrow_mut().clear();
+    ui.stacks_status.set_text(message);
+    clear_list(&ui.stacks_list);
     clear_list(&ui.services_list);
     ui.activity_summary
         .set_text("Activity summary unavailable.");
