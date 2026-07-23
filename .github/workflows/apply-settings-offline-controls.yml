@@ -1,0 +1,30 @@
+name: Apply Settings and offline controls
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/settings-offline-controls
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: python3 scripts/apply-settings-offline-controls.py
+      - run: cargo fmt --all
+      - name: Commit Settings integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/software-center/src/main.rs crates/software-center/src/settings.rs docs/ROADMAP.md
+          git commit -m "feat(settings): add offline controls"
+          git push origin HEAD:feat/settings-offline-controls
