@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 
 use genixbit_package_model::UpdateRecord;
 
+pub const ALL_SECURITY_SOURCES: &str = "All sources";
+
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct SecuritySummary {
     pub total_updates: usize,
@@ -34,6 +36,35 @@ pub fn security_updates(updates: &[UpdateRecord]) -> Vec<&UpdateRecord> {
     updates.iter().filter(|update| update.security).collect()
 }
 
+pub fn filter_security_updates<'a>(
+    updates: &'a [UpdateRecord],
+    query: &str,
+    source: &str,
+) -> Vec<&'a UpdateRecord> {
+    let query = query.trim().to_ascii_lowercase();
+
+    updates
+        .iter()
+        .filter(|update| update.security)
+        .filter(|update| {
+            source.is_empty()
+                || source == ALL_SECURITY_SOURCES
+                || update.source.eq_ignore_ascii_case(source)
+        })
+        .filter(|update| {
+            query.is_empty()
+                || update.name.to_ascii_lowercase().contains(&query)
+                || update.current_version.to_ascii_lowercase().contains(&query)
+                || update
+                    .candidate_version
+                    .to_ascii_lowercase()
+                    .contains(&query)
+                || update.architecture.to_ascii_lowercase().contains(&query)
+                || update.source.to_ascii_lowercase().contains(&query)
+        })
+        .collect()
+}
+
 pub fn summarize_security(updates: &[UpdateRecord]) -> SecuritySummary {
     let security = security_updates(updates);
     let sources = security
@@ -56,7 +87,10 @@ pub fn summarize_security(updates: &[UpdateRecord]) -> SecuritySummary {
 mod tests {
     use genixbit_package_model::UpdateRecord;
 
-    use super::{SecuritySummary, security_updates, summarize_security};
+    use super::{
+        ALL_SECURITY_SOURCES, SecuritySummary, filter_security_updates, security_updates,
+        summarize_security,
+    };
 
     fn update(name: &str, source: &str, security: bool) -> UpdateRecord {
         UpdateRecord {
@@ -78,6 +112,28 @@ mod tests {
         ];
 
         assert_eq!(security_updates(&updates), [&updates[0], &updates[2]]);
+    }
+
+    #[test]
+    fn filters_security_updates_by_query_and_source() {
+        let updates = [
+            update("curl", "security-a", true),
+            update("openssl", "security-b", true),
+            update("nano", "security-a", false),
+        ];
+
+        assert_eq!(
+            filter_security_updates(&updates, "open", ALL_SECURITY_SOURCES),
+            [&updates[1]]
+        );
+        assert_eq!(
+            filter_security_updates(&updates, "", "security-a"),
+            [&updates[0]]
+        );
+        assert_eq!(
+            filter_security_updates(&updates, "curl", "security-b"),
+            Vec::<&UpdateRecord>::new()
+        );
     }
 
     #[test]

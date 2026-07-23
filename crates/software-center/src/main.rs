@@ -20,7 +20,7 @@ use genixbit_package_model::{
     SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
-use security_view::{security_updates, summarize_security};
+use security_view::{ALL_SECURITY_SOURCES, filter_security_updates, summarize_security};
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
@@ -42,6 +42,8 @@ struct UiState {
     installed_page_status: gtk::Label,
     updates_status: gtk::Label,
     updates_list: gtk::ListBox,
+    security_entry: gtk::SearchEntry,
+    security_source: gtk::DropDown,
     security_status: gtk::Label,
     security_list: gtk::ListBox,
     activity_entry: gtk::SearchEntry,
@@ -62,6 +64,7 @@ struct UiState {
     packages: Rc<RefCell<Vec<PackageRecord>>>,
     apps: Rc<RefCell<Vec<AppRecord>>>,
     activity_records: Rc<RefCell<Vec<TransactionRecord>>>,
+    security_updates: Rc<RefCell<Vec<UpdateRecord>>>,
     installed_offset: Rc<Cell<usize>>,
     catalog_query: Rc<RefCell<String>>,
     catalog_offset: Rc<Cell<u64>>,
@@ -186,10 +189,8 @@ fn build_ui(application: &adw::Application) {
         "Software stacks",
         "Install capability-aware collections for AI, development, design and productivity.",
     );
-    let (security_page, security_status, security_list) = build_list_page(
-        "Package security updates",
-        "Review security-classified package updates reported by the configured APT metadata.",
-    );
+    let (security_page, security_entry, security_source, security_status, security_list) =
+        build_security_page();
     add_widget_page(
         &stack,
         "security",
@@ -250,6 +251,8 @@ fn build_ui(application: &adw::Application) {
         installed_page_status,
         updates_status,
         updates_list,
+        security_entry,
+        security_source,
         security_status,
         security_list,
         activity_entry,
@@ -270,6 +273,7 @@ fn build_ui(application: &adw::Application) {
         packages: Rc::new(RefCell::new(Vec::new())),
         apps: Rc::new(RefCell::new(Vec::new())),
         activity_records: Rc::new(RefCell::new(Vec::new())),
+        security_updates: Rc::new(RefCell::new(Vec::new())),
         installed_offset: Rc::new(Cell::new(0)),
         catalog_query: Rc::new(RefCell::new(String::new())),
         catalog_offset: Rc::new(Cell::new(0)),
@@ -283,6 +287,18 @@ fn build_ui(application: &adw::Application) {
             start_snapshot_load(&ui);
             start_activity_load(&ui);
         });
+    }
+    {
+        let ui = ui.clone();
+        ui.security_entry
+            .clone()
+            .connect_changed(move |_| render_security(&ui));
+    }
+    {
+        let ui = ui.clone();
+        ui.security_source
+            .clone()
+            .connect_selected_notify(move |_| render_security(&ui));
     }
     {
         let ui = ui.clone();
@@ -637,6 +653,50 @@ fn build_activity_page() -> (
     (page, entry, operation, state, reset, summary, status, list)
 }
 
+fn build_security_page() -> (
+    gtk::Box,
+    gtk::SearchEntry,
+    gtk::DropDown,
+    gtk::Label,
+    gtk::ListBox,
+) {
+    let page = page_box();
+    append_page_heading(
+        &page,
+        "Package security updates",
+        "Review security-classified package updates reported by the configured APT metadata.",
+    );
+
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let entry = gtk::SearchEntry::builder()
+        .placeholder_text("Search security packages, versions or sources…")
+        .hexpand(true)
+        .build();
+    let source = gtk::DropDown::from_strings(&[ALL_SECURITY_SOURCES]);
+    source.set_tooltip_text(Some("Filter by security-update source"));
+    source.set_sensitive(false);
+    filters.append(&entry);
+    filters.append(&source);
+    page.append(&filters);
+
+    let status = gtk::Label::new(Some("Loading package security metadata…"));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    page.append(&status);
+
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    let scrolled = gtk::ScrolledWindow::builder()
+        .hexpand(true)
+        .vexpand(true)
+        .child(&list)
+        .build();
+    page.append(&scrolled);
+
+    (page, entry, source, status, list)
+}
+
 fn build_list_page(
     title_text: &str,
     description_text: &str,
@@ -725,8 +785,10 @@ fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     populate_installed_sections(ui);
     render_health(ui, &snapshot.health);
     render_installed(ui);
+    *ui.security_updates.borrow_mut() = snapshot.updates.clone();
+    populate_security_sources(ui);
     render_updates(ui, &snapshot.updates);
-    render_security(ui, &snapshot.updates);
+    render_security(ui);
 }
 
 fn render_health(ui: &UiState, health: &SystemHealth) {
@@ -960,13 +1022,24 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
     }
 }
 
-fn render_security(ui: &UiState, updates: &[UpdateRecord]) {
-    clear_list(&ui.security_list);
-    let summary = summarize_security(updates);
-    ui.security_status.set_text(&summary.status_text());
+fn populate_security_sources(ui: &UiState) {
+    let updates = ui.security_updates.borrow();
+    let summary = summarize_security(&updates);
+    let mut values = vec![ALL_SECURITY_SOURCES];
+    values.extend(summary.sources.iter().map(String::as_str));
+    let model = gtk::StringList::new(&values);
+    ui.security_source.set_model(Some(&model));
+    ui.security_source.set_selected(0);
+    ui.security_source.set_sensitive(values.len() > 1);
+}
 
-    let security = security_updates(updates);
-    if security.is_empty() {
+fn render_security(ui: &UiState) {
+    clear_list(&ui.security_list);
+    let updates = ui.security_updates.borrow();
+    let summary = summarize_security(&updates);
+
+    if summary.security_updates == 0 {
+        ui.security_status.set_text(&summary.status_text());
         let row = adw::ActionRow::builder()
             .title("No security updates reported")
             .subtitle("APT metadata currently classifies no available package updates as security updates.")
@@ -978,6 +1051,20 @@ fn render_security(ui: &UiState, updates: &[UpdateRecord]) {
         return;
     }
 
+    let query = ui.security_entry.text();
+    let source = selected_text(&ui.security_source);
+    let security = filter_security_updates(&updates, query.as_str(), &source);
+    if security.is_empty() {
+        ui.security_status
+            .set_text("No security updates match the current search and source filter.");
+        return;
+    }
+
+    ui.security_status.set_text(&format!(
+        "{} Showing {} matching security updates.",
+        summary.status_text(),
+        security.len()
+    ));
     for update in security {
         let subtitle = format!(
             "{} → {} · {} · {}",
@@ -1664,6 +1751,7 @@ fn render_backend_error(ui: &UiState, message: &str) {
     ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
     ui.security_status.set_text(message);
+    ui.security_updates.borrow_mut().clear();
     clear_list(&ui.security_list);
     ui.activity_summary
         .set_text("Activity summary unavailable.");
