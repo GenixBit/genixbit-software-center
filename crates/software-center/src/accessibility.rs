@@ -1,5 +1,5 @@
 use adw::prelude::*;
-use gtk::{gio, prelude::*};
+use gtk::gio;
 
 pub const REFRESH_ACCELERATOR: &str = "<Primary>r";
 pub const SEARCH_ACCELERATOR: &str = "<Primary>f";
