@@ -85,7 +85,7 @@ System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,0
 
 ## Phase 5 — GenixBit OS integration
 
-- [ ] Branded icon and design tokens
+- [x] Branded icon and design tokens
 - [ ] Default installation in the GenixBit OS image
 - [ ] Repository signing validation
 - [ ] Release and rollback testing

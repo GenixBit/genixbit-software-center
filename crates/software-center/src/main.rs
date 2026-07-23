@@ -2,6 +2,7 @@ mod activity_filter;
 mod activity_time;
 mod client;
 mod dashboard_view;
+mod design_tokens;
 mod security_advisory;
 mod security_view;
 mod service_view;
@@ -22,6 +23,9 @@ use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records, summarize_reco
 use activity_time::{current_unix_ms, timing_text};
 use adw::prelude::*;
 use dashboard_view::summarize_dashboard;
+use design_tokens::{
+    CONTROL_SPACING, PAGE_MARGIN, PAGE_SPACING, SIDEBAR_WIDTH, WINDOW_HEIGHT, WINDOW_WIDTH,
+};
 use genixbit_package_model::{
     AppRecord, CatalogPage, CuratedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
     SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
@@ -111,6 +115,19 @@ struct UiState {
     catalog_has_more: Rc<Cell<bool>>,
 }
 
+fn install_design_tokens() {
+    let Some(display) = gtk::gdk::Display::default() else {
+        return;
+    };
+    let provider = gtk::CssProvider::new();
+    provider.load_from_data(design_tokens::CSS);
+    gtk::style_context_add_provider_for_display(
+        &display,
+        &provider,
+        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+}
+
 fn main() -> glib::ExitCode {
     tracing_subscriber::fmt()
         .with_env_filter(
@@ -125,14 +142,17 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(application: &adw::Application) {
+    install_design_tokens();
     let settings_path = settings_path();
     let loaded_settings = load_settings(settings_path.as_deref());
 
     let header = adw::HeaderBar::new();
-    header.set_title_widget(Some(&adw::WindowTitle::new(
+    let window_title = adw::WindowTitle::new(
         "GenixBit Software Center",
         "Native software management for GenixBit OS",
-    )));
+    );
+    window_title.add_css_class("genixbit-brand-title");
+    header.set_title_widget(Some(&window_title));
 
     let refresh = gtk::Button::builder()
         .icon_name("view-refresh-symbolic")
@@ -282,12 +302,12 @@ fn build_ui(application: &adw::Application) {
 
     let sidebar = gtk::StackSidebar::new();
     sidebar.set_stack(&stack);
-    sidebar.set_width_request(230);
+    sidebar.set_width_request(SIDEBAR_WIDTH);
 
     let split = gtk::Paned::new(gtk::Orientation::Horizontal);
     split.set_start_child(Some(&sidebar));
     split.set_end_child(Some(&stack));
-    split.set_position(230);
+    split.set_position(SIDEBAR_WIDTH);
     split.set_shrink_start_child(false);
     split.set_resize_start_child(false);
 
@@ -298,8 +318,8 @@ fn build_ui(application: &adw::Application) {
     let window = adw::ApplicationWindow::builder()
         .application(application)
         .title("GenixBit Software Center")
-        .default_width(1180)
-        .default_height(760)
+        .default_width(WINDOW_WIDTH)
+        .default_height(WINDOW_HEIGHT)
         .content(&root)
         .build();
 
@@ -610,7 +630,7 @@ fn build_installed_page() -> (
         "Search installed applications, system packages, runtimes, drivers and GenixBit components.",
     );
 
-    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Filter by package name or description…")
         .hexpand(true)
@@ -636,7 +656,7 @@ fn build_installed_page() -> (
         .build();
     page.append(&scrolled);
 
-    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let previous = gtk::Button::with_label("Previous");
     previous.set_sensitive(false);
     let page_status = gtk::Label::new(Some("Page 1"));
@@ -695,7 +715,7 @@ fn build_discover_page() -> (
     collections.append(&loading);
     page.append(&collections);
 
-    let search_row = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let search_row = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Search applications, editors, AI tools…")
         .hexpand(true)
@@ -725,7 +745,7 @@ fn build_discover_page() -> (
         .build();
     page.append(&scrolled);
 
-    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let navigation = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let previous = gtk::Button::with_label("Previous");
     previous.set_sensitive(false);
     let page_status = gtk::Label::new(Some("No catalogue page loaded"));
@@ -769,7 +789,7 @@ fn build_activity_page() -> (
         "Review recent package previews, simulations, cancellations, failures and interrupted work.",
     );
 
-    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Search package, message or transaction ID…")
         .hexpand(true)
@@ -834,7 +854,7 @@ fn build_security_page() -> (
         "Review security-classified package updates reported by the configured APT metadata.",
     );
 
-    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Search security packages, versions or sources…")
         .hexpand(true)
@@ -883,7 +903,7 @@ fn build_services_page() -> (
         "Inspect read-only state for explicitly approved systemd services.",
     );
 
-    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Search approved services or metadata…")
         .hexpand(true)
@@ -937,7 +957,7 @@ fn build_stacks_page() -> (
         "Software stacks",
         "Inspect curated capability bundles and see which packages are already installed. Installation remains disabled.",
     );
-    let filters = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let filters = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let entry = gtk::SearchEntry::builder()
         .placeholder_text("Search stacks, packages or roles…")
         .hexpand(true)
@@ -984,7 +1004,7 @@ fn build_profiles_page() -> (gtk::Box, gtk::Button, gtk::Button, gtk::Label) {
     status.set_wrap(true);
     page.append(&status);
 
-    let actions = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+    let actions = gtk::Box::new(gtk::Orientation::Horizontal, CONTROL_SPACING);
     let export = gtk::Button::with_label("Export current profile");
     export.set_tooltip_text(Some(
         "Open a copyable deterministic profile for this system",
@@ -1117,11 +1137,11 @@ fn build_list_page(
 }
 
 fn page_box() -> gtk::Box {
-    let page = gtk::Box::new(gtk::Orientation::Vertical, 12);
-    page.set_margin_top(24);
-    page.set_margin_bottom(24);
-    page.set_margin_start(24);
-    page.set_margin_end(24);
+    let page = gtk::Box::new(gtk::Orientation::Vertical, PAGE_SPACING);
+    page.set_margin_top(PAGE_MARGIN);
+    page.set_margin_bottom(PAGE_MARGIN);
+    page.set_margin_start(PAGE_MARGIN);
+    page.set_margin_end(PAGE_MARGIN);
     page
 }
 
@@ -2583,7 +2603,7 @@ fn show_profile_compare(ui: &UiState) {
         .transient_for(&ui.window)
         .modal(true)
         .default_width(860)
-        .default_height(760)
+        .default_height(WINDOW_HEIGHT)
         .content(&content)
         .build()
         .present();
