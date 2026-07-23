@@ -68,7 +68,7 @@ def load_contract(path: Path) -> tuple[dict[str, Any], list[str]]:
         return {}, errors
     if contract.get("schema") != 1:
         errors.append("release contract schema must be 1")
-    for key in ("package", "application_id", "service", "version"):
+    for key in ("description", "package", "application_id", "service", "version"):
         if not isinstance(contract.get(key), str) or not contract[key]:
             errors.append(f"release contract field {key!r} must be a non-empty string")
     parse_version(contract.get("version"), "contract version", errors)
