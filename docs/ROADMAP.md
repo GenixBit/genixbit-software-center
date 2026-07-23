@@ -97,7 +97,7 @@ The OS image consumes `os-image/default-packages.list`; CI verifies the default 
 
 Repository signing validation audits staged APT sources offline, requires HTTPS and per-repository `Signed-By` keyrings, rejects insecure overrides, and verifies keyring files against image-builder SHA-256 pins. Repository refresh remains disabled in the application.
 
-Release validation builds the complete workspace in release mode and checks a tamper-evident current/previous artifact pair. Automatic rollback and all application package mutation remain disabled.
+Release validation aligns workspace and AppStream versions, builds the locked workspace in release mode, and verifies exact tamper-evident current/rollback filesystem bundles against `release/release-contract.json`. Automatic rollback and all application package mutation remain disabled.
 
 ## Phase 6 — Future GenixPkg backend
 
