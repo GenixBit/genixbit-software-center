@@ -67,7 +67,10 @@ pub fn filter_services<'a>(
                 || service.load_state.to_ascii_lowercase().contains(&query)
                 || service.active_state.to_ascii_lowercase().contains(&query)
                 || service.sub_state.to_ascii_lowercase().contains(&query)
-                || service.unit_file_state.to_ascii_lowercase().contains(&query)
+                || service
+                    .unit_file_state
+                    .to_ascii_lowercase()
+                    .contains(&query)
         })
         .filter(|service| {
             if state.is_empty() || state == ALL_SERVICE_STATES {
@@ -207,21 +210,11 @@ mod tests {
             "Unavailable"
         );
         assert_eq!(
-            service_state_label(&service(
-                "failed.service",
-                "loaded",
-                "failed",
-                "disabled"
-            )),
+            service_state_label(&service("failed.service", "loaded", "failed", "disabled")),
             "Failed"
         );
         assert_eq!(
-            service_state_label(&service(
-                "active.service",
-                "loaded",
-                "active",
-                "enabled"
-            )),
+            service_state_label(&service("active.service", "loaded", "active", "enabled")),
             "Active"
         );
     }
