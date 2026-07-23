@@ -1,0 +1,25 @@
+name: Diagnose Activity filter formatting
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Capture rustfmt diff
+        run: cargo fmt --all -- --check > fmt.log 2>&1 || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: activity-filter-format
+          path: fmt.log
+          if-no-files-found: error
