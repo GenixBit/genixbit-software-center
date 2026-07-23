@@ -5,6 +5,7 @@ pub const REFRESH_ACCELERATOR: &str = "<Primary>r";
 pub const SEARCH_ACCELERATOR: &str = "<Primary>f";
 pub const QUIT_ACCELERATOR: &str = "<Primary>q";
 
+/// Stable page destinations shared by the sidebar and application accelerators.
 pub const NAVIGATION_PAGES: [(&str, &str); 10] = [
     ("dashboard", "<Alt>1"),
     ("discover", "<Alt>2"),
@@ -18,6 +19,7 @@ pub const NAVIGATION_PAGES: [(&str, &str); 10] = [
     ("settings", "<Alt>0"),
 ];
 
+/// Pages whose primary search entry is eligible for the global Ctrl+F action.
 pub const SEARCHABLE_PAGES: [&str; 6] = [
     "discover",
     "installed",
@@ -27,12 +29,20 @@ pub const SEARCHABLE_PAGES: [&str; 6] = [
     "services",
 ];
 
+/// Install application-level actions without introducing privileged behavior.
 pub fn install_actions(
     application: &adw::Application,
     stack: &gtk::Stack,
     refresh_button: &gtk::Button,
     search_entries: Vec<(&'static str, gtk::SearchEntry)>,
 ) {
+    debug_assert_eq!(search_entries.len(), SEARCHABLE_PAGES.len());
+    debug_assert!(SEARCHABLE_PAGES.iter().all(|expected| {
+        search_entries
+            .iter()
+            .any(|(page, _)| page == expected)
+    }));
+
     let refresh_action = gio::SimpleAction::new("refresh", None);
     let refresh_button = refresh_button.clone();
     refresh_action.connect_activate(move |_, _| refresh_button.emit_clicked());
