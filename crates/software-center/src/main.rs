@@ -20,7 +20,9 @@ use genixbit_package_model::{
     SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
-use security_view::{ALL_SECURITY_SOURCES, filter_security_updates, summarize_security};
+use security_view::{
+    ALL_SECURITY_SOURCES, filter_security_updates, security_filters_active, summarize_security,
+};
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
@@ -44,6 +46,7 @@ struct UiState {
     updates_list: gtk::ListBox,
     security_entry: gtk::SearchEntry,
     security_source: gtk::DropDown,
+    security_reset: gtk::Button,
     security_status: gtk::Label,
     security_list: gtk::ListBox,
     activity_entry: gtk::SearchEntry,
@@ -189,8 +192,14 @@ fn build_ui(application: &adw::Application) {
         "Software stacks",
         "Install capability-aware collections for AI, development, design and productivity.",
     );
-    let (security_page, security_entry, security_source, security_status, security_list) =
-        build_security_page();
+    let (
+        security_page,
+        security_entry,
+        security_source,
+        security_reset,
+        security_status,
+        security_list,
+    ) = build_security_page();
     add_widget_page(
         &stack,
         "security",
@@ -253,6 +262,7 @@ fn build_ui(application: &adw::Application) {
         updates_list,
         security_entry,
         security_source,
+        security_reset,
         security_status,
         security_list,
         activity_entry,
@@ -299,6 +309,14 @@ fn build_ui(application: &adw::Application) {
         ui.security_source
             .clone()
             .connect_selected_notify(move |_| render_security(&ui));
+    }
+    {
+        let ui = ui.clone();
+        ui.security_reset.clone().connect_clicked(move |_| {
+            ui.security_entry.set_text("");
+            ui.security_source.set_selected(0);
+            render_security(&ui);
+        });
     }
     {
         let ui = ui.clone();
@@ -657,6 +675,7 @@ fn build_security_page() -> (
     gtk::Box,
     gtk::SearchEntry,
     gtk::DropDown,
+    gtk::Button,
     gtk::Label,
     gtk::ListBox,
 ) {
@@ -675,8 +694,12 @@ fn build_security_page() -> (
     let source = gtk::DropDown::from_strings(&[ALL_SECURITY_SOURCES]);
     source.set_tooltip_text(Some("Filter by security-update source"));
     source.set_sensitive(false);
+    let reset = gtk::Button::with_label("Clear filters");
+    reset.set_tooltip_text(Some("Clear Security search and source filters"));
+    reset.set_sensitive(false);
     filters.append(&entry);
     filters.append(&source);
+    filters.append(&reset);
     page.append(&filters);
 
     let status = gtk::Label::new(Some("Loading package security metadata…"));
@@ -694,7 +717,7 @@ fn build_security_page() -> (
         .build();
     page.append(&scrolled);
 
-    (page, entry, source, status, list)
+    (page, entry, source, reset, status, list)
 }
 
 fn build_list_page(
@@ -1053,6 +1076,8 @@ fn render_security(ui: &UiState) {
 
     let query = ui.security_entry.text();
     let source = selected_text(&ui.security_source);
+    ui.security_reset
+        .set_sensitive(security_filters_active(query.as_str(), &source));
     let security = filter_security_updates(&updates, query.as_str(), &source);
     if security.is_empty() {
         ui.security_status
