@@ -2,6 +2,7 @@ mod activity_filter;
 mod activity_time;
 mod client;
 mod dashboard_view;
+mod security_advisory;
 mod security_view;
 mod service_view;
 mod stack_view;
@@ -24,6 +25,7 @@ use genixbit_package_model::{
     SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
+use security_advisory::{SecurityAdvisory, advisory_for_update};
 use security_view::{
     ALL_SECURITY_SOURCES, filter_security_updates, security_filters_active, summarize_security,
 };
@@ -1315,28 +1317,75 @@ fn render_security(ui: &UiState) {
     }
 
     ui.security_status.set_text(&format!(
-        "{} Showing {} matching security updates.",
+        "{} Showing {} matching local security advisories.",
         summary.status_text(),
         security.len()
     ));
     for update in security {
+        let Some(advisory) = advisory_for_update(update) else {
+            continue;
+        };
         let subtitle = format!(
-            "{} → {} · {} · {}",
-            update.current_version, update.candidate_version, update.architecture, update.source
+            "{} · {} → {} · {} · {}",
+            advisory.id,
+            advisory.current_version,
+            advisory.candidate_version,
+            advisory.architecture,
+            if advisory.source.trim().is_empty() {
+                "source not reported"
+            } else {
+                &advisory.source
+            }
         );
         let row = adw::ActionRow::builder()
-            .title(&update.name)
+            .title(&advisory.title)
             .subtitle(&subtitle)
             .activatable(true)
             .build();
-        let badge = gtk::Label::new(Some("Security"));
+        let badge = gtk::Label::new(Some("Advisory"));
         badge.add_css_class("error");
         row.add_suffix(&badge);
         let callback_ui = ui.clone();
-        let package_name = update.name.clone();
-        row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
+        row.connect_activated(move |_| show_security_advisory(&callback_ui, &advisory));
         ui.security_list.append(&row);
     }
+}
+
+fn show_security_advisory(ui: &UiState, advisory: &SecurityAdvisory) {
+    let content = gtk::Box::new(gtk::Orientation::Vertical, 12);
+    content.set_margin_top(18);
+    content.set_margin_bottom(18);
+    content.set_margin_start(18);
+    content.set_margin_end(18);
+
+    let status = gtk::Label::new(Some(
+        "This advisory is derived from local APT metadata and is read only.",
+    ));
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    content.append(&status);
+
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+    append_detail_row(&list, "Advisory ID", &advisory.id);
+    append_detail_row(&list, "Package", &advisory.package);
+    append_detail_row(&list, "Installed version", &advisory.current_version);
+    append_detail_row(&list, "Security candidate", &advisory.candidate_version);
+    append_detail_row(&list, "Architecture", &advisory.architecture);
+    append_detail_row(&list, "Repository source", &advisory.source);
+    append_detail_row(&list, "Coverage", &advisory.coverage_note);
+    content.append(&list);
+
+    let window = adw::Window::builder()
+        .title(&advisory.title)
+        .default_width(700)
+        .default_height(560)
+        .transient_for(&ui.window)
+        .modal(true)
+        .content(&content)
+        .build();
+    window.present();
 }
 
 fn start_services_load(ui: &UiState) {
