@@ -42,86 +42,32 @@ impl StackStatus {
 }
 
 const AI_PACKAGES: &[StackPackage] = &[
-    StackPackage {
-        name: "python3",
-        role: "Python runtime",
-    },
-    StackPackage {
-        name: "python3-venv",
-        role: "Virtual environments",
-    },
-    StackPackage {
-        name: "python3-pip",
-        role: "Python package installer",
-    },
-    StackPackage {
-        name: "git",
-        role: "Source control",
-    },
+    StackPackage { name: "python3", role: "Python runtime" },
+    StackPackage { name: "python3-venv", role: "Virtual environments" },
+    StackPackage { name: "python3-pip", role: "Python package installer" },
+    StackPackage { name: "git", role: "Source control" },
 ];
 const WEB_PACKAGES: &[StackPackage] = &[
-    StackPackage {
-        name: "nodejs",
-        role: "JavaScript runtime",
-    },
-    StackPackage {
-        name: "npm",
-        role: "JavaScript package manager",
-    },
-    StackPackage {
-        name: "git",
-        role: "Source control",
-    },
-    StackPackage {
-        name: "build-essential",
-        role: "Native build toolchain",
-    },
+    StackPackage { name: "nodejs", role: "JavaScript runtime" },
+    StackPackage { name: "npm", role: "JavaScript package manager" },
+    StackPackage { name: "git", role: "Source control" },
+    StackPackage { name: "build-essential", role: "Native build toolchain" },
 ];
 const NATIVE_PACKAGES: &[StackPackage] = &[
-    StackPackage {
-        name: "build-essential",
-        role: "Compiler and build tools",
-    },
-    StackPackage {
-        name: "cmake",
-        role: "Cross-platform build system",
-    },
-    StackPackage {
-        name: "pkg-config",
-        role: "Library metadata lookup",
-    },
-    StackPackage {
-        name: "gdb",
-        role: "Native debugger",
-    },
+    StackPackage { name: "build-essential", role: "Compiler and build tools" },
+    StackPackage { name: "cmake", role: "Cross-platform build system" },
+    StackPackage { name: "pkg-config", role: "Library metadata lookup" },
+    StackPackage { name: "gdb", role: "Native debugger" },
 ];
 const CREATIVE_PACKAGES: &[StackPackage] = &[
-    StackPackage {
-        name: "gimp",
-        role: "Raster image editor",
-    },
-    StackPackage {
-        name: "inkscape",
-        role: "Vector graphics editor",
-    },
-    StackPackage {
-        name: "blender",
-        role: "3D creation suite",
-    },
+    StackPackage { name: "gimp", role: "Raster image editor" },
+    StackPackage { name: "inkscape", role: "Vector graphics editor" },
+    StackPackage { name: "blender", role: "3D creation suite" },
 ];
 const PRODUCTIVITY_PACKAGES: &[StackPackage] = &[
-    StackPackage {
-        name: "libreoffice",
-        role: "Office suite",
-    },
-    StackPackage {
-        name: "evince",
-        role: "Document viewer",
-    },
-    StackPackage {
-        name: "file-roller",
-        role: "Archive manager",
-    },
+    StackPackage { name: "libreoffice", role: "Office suite" },
+    StackPackage { name: "evince", role: "Document viewer" },
+    StackPackage { name: "file-roller", role: "Archive manager" },
 ];
 
 pub fn software_stacks() -> &'static [SoftwareStack] {
@@ -170,10 +116,7 @@ pub fn software_stacks() -> &'static [SoftwareStack] {
 }
 
 pub fn installed_names(packages: &[PackageRecord]) -> HashSet<&str> {
-    packages
-        .iter()
-        .map(|package| package.name.as_str())
-        .collect()
+    packages.iter().map(|package| package.name.as_str()).collect()
 }
 
 pub fn stack_status(stack: &SoftwareStack, installed: &HashSet<&str>) -> StackStatus {
@@ -187,7 +130,7 @@ pub fn stack_status(stack: &SoftwareStack, installed: &HashSet<&str>) -> StackSt
     }
 }
 
-pub fn filter_stacks<'a>(query: &str, category: &str) -> Vec<&'a SoftwareStack> {
+pub fn filter_stacks(query: &str, category: &str) -> Vec<&'static SoftwareStack> {
     let query = query.trim().to_ascii_lowercase();
     software_stacks()
         .iter()
