@@ -77,7 +77,7 @@ Remaining Phase 2 completion criteria:
 - [x] Approved systemd services
 - [ ] System Profiles export, comparison and restore
 - [x] Read-only transaction Activity history page
-- [ ] Settings and offline controls
+- [x] Settings and offline controls
 
 Software Stacks currently reports curated package roles and installed progress from the local snapshot only; installation controls remain disabled.
 

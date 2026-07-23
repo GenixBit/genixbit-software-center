@@ -5,6 +5,7 @@ mod dashboard_view;
 mod security_advisory;
 mod security_view;
 mod service_view;
+mod settings;
 mod stack_view;
 
 use std::{
@@ -33,6 +34,7 @@ use service_view::{
     ALL_SERVICE_STATES, filter_services, service_filters_active, service_state_css_class,
     service_state_label, summarize_services,
 };
+use settings::{AppSettings, load_settings, save_settings, settings_path};
 use stack_view::{
     ALL_STACK_CATEGORIES, SoftwareStack, filter_stacks, filters_active as stack_filters_active,
     installed_names, stack_status,
@@ -89,6 +91,11 @@ struct UiState {
     discover_previous: gtk::Button,
     discover_next: gtk::Button,
     discover_page_status: gtk::Label,
+    settings_offline: gtk::Switch,
+    settings_startup_refresh: gtk::Switch,
+    settings_status: gtk::Label,
+    settings: Rc<RefCell<AppSettings>>,
+    settings_path: Option<std::path::PathBuf>,
     packages: Rc<RefCell<Vec<PackageRecord>>>,
     apps: Rc<RefCell<Vec<AppRecord>>>,
     activity_records: Rc<RefCell<Vec<TransactionRecord>>>,
@@ -115,6 +122,9 @@ fn main() -> glib::ExitCode {
 }
 
 fn build_ui(application: &adw::Application) {
+    let settings_path = settings_path();
+    let loaded_settings = load_settings(settings_path.as_deref());
+
     let header = adw::HeaderBar::new();
     header.set_title_widget(Some(&adw::WindowTitle::new(
         "GenixBit Software Center",
@@ -257,6 +267,15 @@ fn build_ui(application: &adw::Application) {
         "Portable system profiles",
         "Export, compare and restore software configurations across GenixBit OS devices.",
     );
+    let (settings_page, settings_offline, settings_startup_refresh, settings_status) =
+        build_settings_page(&loaded_settings, settings_path.as_deref());
+    add_widget_page(
+        &stack,
+        "settings",
+        "Settings",
+        "preferences-system-symbolic",
+        &settings_page,
+    );
 
     let sidebar = gtk::StackSidebar::new();
     sidebar.set_stack(&stack);
@@ -325,6 +344,11 @@ fn build_ui(application: &adw::Application) {
         discover_previous,
         discover_next,
         discover_page_status,
+        settings_offline,
+        settings_startup_refresh,
+        settings_status,
+        settings: Rc::new(RefCell::new(loaded_settings)),
+        settings_path,
         packages: Rc::new(RefCell::new(Vec::new())),
         apps: Rc::new(RefCell::new(Vec::new())),
         activity_records: Rc::new(RefCell::new(Vec::new())),
@@ -343,7 +367,26 @@ fn build_ui(application: &adw::Application) {
             start_snapshot_load(&ui);
             start_activity_load(&ui);
             start_services_load(&ui);
+            start_curated_catalogue_load(&ui);
         });
+    }
+    {
+        let ui = ui.clone();
+        ui.settings_offline
+            .clone()
+            .connect_active_notify(move |control| {
+                ui.settings.borrow_mut().offline_mode = control.is_active();
+                persist_and_render_settings(&ui);
+            });
+    }
+    {
+        let ui = ui.clone();
+        ui.settings_startup_refresh
+            .clone()
+            .connect_active_notify(move |control| {
+                ui.settings.borrow_mut().refresh_on_startup = control.is_active();
+                persist_and_render_settings(&ui);
+            });
     }
     {
         let ui = ui.clone();
@@ -505,10 +548,15 @@ fn build_ui(application: &adw::Application) {
         });
     }
 
-    start_snapshot_load(&ui);
-    start_activity_load(&ui);
-    start_services_load(&ui);
-    start_curated_catalogue_load(&ui);
+    render_settings(&ui, None);
+    if ui.settings.borrow().refresh_on_startup {
+        start_snapshot_load(&ui);
+        start_activity_load(&ui);
+        start_services_load(&ui);
+        start_curated_catalogue_load(&ui);
+    } else {
+        render_startup_refresh_disabled(&ui);
+    }
     window.present();
 }
 
@@ -909,6 +957,72 @@ fn build_stacks_page() -> (
         .build();
     page.append(&scrolled);
     (page, entry, category, reset, status, list)
+}
+
+fn build_settings_page(
+    settings: &AppSettings,
+    path: Option<&std::path::Path>,
+) -> (gtk::Box, gtk::Switch, gtk::Switch, gtk::Label) {
+    let page = page_box();
+    append_page_heading(
+        &page,
+        "Settings and offline controls",
+        "Control user-level network policy and local metadata loading. Package and service changes remain disabled.",
+    );
+
+    let status = gtk::Label::new(None);
+    status.set_xalign(0.0);
+    status.set_wrap(true);
+    page.append(&status);
+
+    let list = gtk::ListBox::new();
+    list.set_selection_mode(gtk::SelectionMode::None);
+    list.add_css_class("boxed-list");
+
+    let offline = gtk::Switch::builder()
+        .active(settings.offline_mode)
+        .valign(gtk::Align::Center)
+        .build();
+    let offline_row = adw::ActionRow::builder()
+        .title("Offline mode")
+        .subtitle("Block future external providers while allowing local dpkg, APT, AppStream, journal and systemd reads.")
+        .build();
+    offline_row.add_suffix(&offline);
+    list.append(&offline_row);
+
+    let startup_refresh = gtk::Switch::builder()
+        .active(settings.refresh_on_startup)
+        .valign(gtk::Align::Center)
+        .build();
+    let refresh_row = adw::ActionRow::builder()
+        .title("Refresh local metadata on startup")
+        .subtitle("Load package, update, service, Activity and AppStream metadata when the application opens.")
+        .build();
+    refresh_row.add_suffix(&startup_refresh);
+    list.append(&refresh_row);
+
+    let storage = adw::ActionRow::builder()
+        .title("Settings storage")
+        .subtitle(
+            path.map(|value| value.display().to_string())
+                .unwrap_or_else(|| {
+                    "Session only: no HOME or XDG_CONFIG_HOME is available".to_owned()
+                }),
+        )
+        .build();
+    list.append(&storage);
+
+    let safety = adw::ActionRow::builder()
+        .title("Mutation safety")
+        .subtitle("Install, remove, upgrade, repository refresh and service-control operations remain fail-closed.")
+        .build();
+    let badge = gtk::Label::new(Some("Protected"));
+    badge.add_css_class("success");
+    safety.add_suffix(&badge);
+    list.append(&safety);
+
+    page.append(&list);
+    (page, offline, startup_refresh, status)
 }
 
 fn build_list_page(
@@ -2284,6 +2398,51 @@ fn format_size(size_kib: u64) -> String {
     } else {
         format!("{size_kib} KiB")
     }
+}
+
+fn persist_and_render_settings(ui: &UiState) {
+    let settings = ui.settings.borrow().clone();
+    let error = ui
+        .settings_path
+        .as_deref()
+        .and_then(|path| save_settings(path, &settings).err())
+        .map(|error| error.to_string());
+    render_settings(ui, error.as_deref());
+}
+
+fn render_settings(ui: &UiState, error: Option<&str>) {
+    let settings = ui.settings.borrow();
+    let mut text = settings.policy_text();
+    if let Some(path) = ui.settings_path.as_deref() {
+        text.push_str(&format!(" Saved in {}.", path.display()));
+    } else {
+        text.push_str(" Changes apply to this session only.");
+    }
+    if let Some(error) = error {
+        text.push_str(&format!(" Unable to save settings: {error}"));
+    }
+    ui.settings_status.set_text(&text);
+}
+
+fn render_startup_refresh_disabled(ui: &UiState) {
+    let message = "Automatic startup refresh is disabled. Use the header refresh button to load local metadata.";
+    ui.dashboard_status.set_text(message);
+    ui.installed_status.set_text(message);
+    ui.updates_status.set_text(message);
+    ui.security_status.set_text(message);
+    ui.services_status.set_text(message);
+    ui.stacks_status.set_text(message);
+    ui.activity_summary.set_text("Activity summary not loaded.");
+    ui.activity_status.set_text(message);
+    ui.discover_status.set_text(message);
+    ui.discover_page_status.set_text("Refresh required");
+    clear_list(&ui.discover_collections);
+    ui.discover_collections.append(
+        &adw::ActionRow::builder()
+            .title("Curated catalogue not loaded")
+            .subtitle(message)
+            .build(),
+    );
 }
 
 fn render_backend_error(ui: &UiState, message: &str) {
