@@ -9,6 +9,7 @@
     "crates/software-center/Cargo.toml",
     "crates/genixpkgd/Cargo.toml"
   ],
+  "description": "Deterministic source, staged-bundle and retained-rollback validation contract for GenixBit Software Center releases.",
   "package": "genixbit-software-center",
   "required_bundle_paths": [
     "usr/bin/genixbit-software-center",
