@@ -16,6 +16,9 @@
     <method name="CheckUpdates">
       <arg name="updates" type="a(sssssb)" direction="out"/>
     </method>
+    <method name="ListApprovedServices">
+      <arg name="services" type="a(ssssss)" direction="out"/>
+    </method>
     <method name="PackageDetails">
       <arg name="package" type="s" direction="in"/>
       <arg name="details" type="(bssssssstbsssssasasasbb)" direction="out"/>

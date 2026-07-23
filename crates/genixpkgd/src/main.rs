@@ -9,6 +9,7 @@ mod event_journal;
 mod journal;
 mod recovery;
 mod simulation_control;
+mod systemd;
 mod transaction;
 mod transaction_query;
 
@@ -18,8 +19,8 @@ use anyhow::Context;
 use apt_live::AptSimulationOutcome;
 use authorization::AuthorizationHelper;
 use genixbit_package_model::{
-    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
-    SystemSnapshot, TransactionEvent, TransactionPreview, TransactionQueueSnapshot,
+    AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
+    SystemHealth, SystemSnapshot, TransactionEvent, TransactionPreview, TransactionQueueSnapshot,
     TransactionRecord, UpdateRecord,
 };
 use journal::TransactionJournal;
@@ -203,6 +204,12 @@ impl PackageManager {
 
     async fn check_updates(&self) -> zbus::fdo::Result<Vec<UpdateRecord>> {
         apt::check_updates().await.map_err(dbus_failed)
+    }
+
+    async fn list_approved_services(&self) -> zbus::fdo::Result<Vec<ServiceRecord>> {
+        systemd::inspect_approved_services()
+            .await
+            .map_err(dbus_failed)
     }
 
     async fn package_details(&self, package: &str) -> zbus::fdo::Result<PackageDetailRecord> {
