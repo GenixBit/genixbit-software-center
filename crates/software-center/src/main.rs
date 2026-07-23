@@ -1,4 +1,5 @@
 mod activity_filter;
+mod activity_time;
 mod client;
 
 use std::{
@@ -11,6 +12,7 @@ use std::{
 };
 
 use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records, summarize_records};
+use activity_time::{current_unix_ms, timing_text};
 use adw::prelude::*;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, SystemHealth,
@@ -1025,10 +1027,16 @@ fn render_activity(ui: &UiState) {
         filtered.len(),
         records.len()
     ));
+    let now_unix_ms = current_unix_ms();
     for record in filtered {
         let row = adw::ActionRow::builder()
             .title(activity_title(record))
-            .subtitle(format!("Transaction #{} · {}", record.id, record.message))
+            .subtitle(format!(
+                "Transaction #{} · {} · {}",
+                record.id,
+                record.message,
+                timing_text(record, now_unix_ms)
+            ))
             .activatable(true)
             .build();
 
@@ -1128,8 +1136,9 @@ fn render_transaction_details(
     clear_list(list);
     if events.is_empty() {
         status.set_text(&format!(
-            "No lifecycle events are currently available for transaction #{}.",
-            record.id
+            "No lifecycle events are currently available for transaction #{}. {}.",
+            record.id,
+            timing_text(record, current_unix_ms())
         ));
         append_detail_row(list, "Current state", activity_state_label(&record.state));
         append_detail_row(list, "Latest message", &record.message);
@@ -1137,9 +1146,10 @@ fn render_transaction_details(
     }
 
     status.set_text(&format!(
-        "{} lifecycle events for {}. This timeline is read only.",
+        "{} lifecycle events for {}. {}. This timeline is read only.",
         events.len(),
-        activity_title(record)
+        activity_title(record),
+        timing_text(record, current_unix_ms())
     ));
     for event in events {
         let row = adw::ActionRow::builder()

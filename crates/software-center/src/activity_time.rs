@@ -11,7 +11,9 @@ pub fn current_unix_ms() -> u64 {
 
 pub fn timing_text(record: &TransactionRecord, now_unix_ms: u64) -> String {
     let updated_age_ms = now_unix_ms.saturating_sub(record.updated_unix_ms);
-    let duration_ms = record.updated_unix_ms.saturating_sub(record.created_unix_ms);
+    let duration_ms = record
+        .updated_unix_ms
+        .saturating_sub(record.created_unix_ms);
     format!(
         "Updated {} ago · Duration {}",
         format_duration(updated_age_ms),
