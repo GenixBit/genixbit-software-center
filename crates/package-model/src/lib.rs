@@ -72,6 +72,17 @@ pub struct FeaturedCollection {
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
+pub struct CuratedCollection {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub query: String,
+    pub category: String,
+    pub icon: String,
+    pub applications: Vec<AppRecord>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Type)]
 pub struct CatalogPage {
     pub applications: Vec<AppRecord>,
     pub total: u64,
