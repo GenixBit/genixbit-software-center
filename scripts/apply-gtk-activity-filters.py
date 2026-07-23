@@ -42,8 +42,8 @@ replace_once(
 ''',
 )
 replace_once(
-    "        activity_status,\n        activity_list,\n",
-    "        activity_entry,\n        activity_operation,\n        activity_state,\n        activity_status,\n        activity_list,\n",
+    "        updates_status,\n        updates_list,\n        activity_status,\n        activity_list,\n        discover_entry,\n",
+    "        updates_status,\n        updates_list,\n        activity_entry,\n        activity_operation,\n        activity_state,\n        activity_status,\n        activity_list,\n        discover_entry,\n",
 )
 replace_once(
     "        apps: Rc::new(RefCell::new(Vec::new())),\n",
@@ -233,6 +233,7 @@ text = text[:start] + new_render + text[end:]
 replace_once(
     '''    ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
+    ui.activity_status.set_text(message);
 ''',
     '''    ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
