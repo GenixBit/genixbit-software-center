@@ -26,11 +26,6 @@ mod tests {
     use super::{CSS, css_is_complete};
 
     #[test]
-    fn uses_reverse_dns_icon_name() {
-        assert_eq!("com.genixbit.SoftwareCenter", "com.genixbit.SoftwareCenter");
-    }
-
-    #[test]
     fn packaged_css_contains_all_public_tokens() {
         assert!(css_is_complete());
         assert!(CSS.contains("@define-color genixbit_accent"));
