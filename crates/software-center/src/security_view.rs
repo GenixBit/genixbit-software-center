@@ -77,10 +77,7 @@ mod tests {
             update("openssl", "Ubuntu-Security", true),
         ];
 
-        assert_eq!(
-            security_updates(&updates),
-            [&updates[0], &updates[2]]
-        );
+        assert_eq!(security_updates(&updates), [&updates[0], &updates[2]]);
     }
 
     #[test]

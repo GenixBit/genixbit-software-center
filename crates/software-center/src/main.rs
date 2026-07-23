@@ -1,6 +1,7 @@
 mod activity_filter;
 mod activity_time;
 mod client;
+mod security_view;
 
 use std::{
     cell::{Cell, RefCell},
@@ -19,6 +20,7 @@ use genixbit_package_model::{
     SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
 };
 use gtk::glib;
+use security_view::{security_updates, summarize_security};
 
 const APP_ID: &str = "com.genixbit.SoftwareCenter";
 const CATALOG_PAGE_SIZE: u64 = 25;
@@ -40,6 +42,8 @@ struct UiState {
     installed_page_status: gtk::Label,
     updates_status: gtk::Label,
     updates_list: gtk::ListBox,
+    security_status: gtk::Label,
+    security_list: gtk::ListBox,
     activity_entry: gtk::SearchEntry,
     activity_operation: gtk::DropDown,
     activity_state: gtk::DropDown,
@@ -182,13 +186,16 @@ fn build_ui(application: &adw::Application) {
         "Software stacks",
         "Install capability-aware collections for AI, development, design and productivity.",
     );
-    add_placeholder_page(
+    let (security_page, security_status, security_list) = build_list_page(
+        "Package security updates",
+        "Review security-classified package updates reported by the configured APT metadata.",
+    );
+    add_widget_page(
         &stack,
         "security",
         "Security",
         "security-high-symbolic",
-        "Security status",
-        "Package advisories, signature verification and repository trust will appear here.",
+        &security_page,
     );
     add_placeholder_page(
         &stack,
@@ -243,6 +250,8 @@ fn build_ui(application: &adw::Application) {
         installed_page_status,
         updates_status,
         updates_list,
+        security_status,
+        security_list,
         activity_entry,
         activity_operation,
         activity_state,
@@ -717,6 +726,7 @@ fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     render_health(ui, &snapshot.health);
     render_installed(ui);
     render_updates(ui, &snapshot.updates);
+    render_security(ui, &snapshot.updates);
 }
 
 fn render_health(ui: &UiState, health: &SystemHealth) {
@@ -947,6 +957,44 @@ fn render_updates(ui: &UiState, updates: &[UpdateRecord]) {
         let package_name = update.name.clone();
         row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
         ui.updates_list.append(&row);
+    }
+}
+
+fn render_security(ui: &UiState, updates: &[UpdateRecord]) {
+    clear_list(&ui.security_list);
+    let summary = summarize_security(updates);
+    ui.security_status.set_text(&summary.status_text());
+
+    let security = security_updates(updates);
+    if security.is_empty() {
+        let row = adw::ActionRow::builder()
+            .title("No security updates reported")
+            .subtitle("APT metadata currently classifies no available package updates as security updates.")
+            .build();
+        let badge = gtk::Label::new(Some("Current"));
+        badge.add_css_class("success");
+        row.add_suffix(&badge);
+        ui.security_list.append(&row);
+        return;
+    }
+
+    for update in security {
+        let subtitle = format!(
+            "{} → {} · {} · {}",
+            update.current_version, update.candidate_version, update.architecture, update.source
+        );
+        let row = adw::ActionRow::builder()
+            .title(&update.name)
+            .subtitle(&subtitle)
+            .activatable(true)
+            .build();
+        let badge = gtk::Label::new(Some("Security"));
+        badge.add_css_class("error");
+        row.add_suffix(&badge);
+        let callback_ui = ui.clone();
+        let package_name = update.name.clone();
+        row.connect_activated(move |_| start_package_details(&callback_ui, &package_name));
+        ui.security_list.append(&row);
     }
 }
 
@@ -1615,6 +1663,8 @@ fn render_backend_error(ui: &UiState, message: &str) {
         .set_text(&format!("Package service unavailable: {message}"));
     ui.installed_status.set_text(message);
     ui.updates_status.set_text(message);
+    ui.security_status.set_text(message);
+    clear_list(&ui.security_list);
     ui.activity_summary
         .set_text("Activity summary unavailable.");
     ui.activity_status.set_text(message);
