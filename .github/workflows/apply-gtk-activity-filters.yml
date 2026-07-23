@@ -1,0 +1,30 @@
+name: Apply GTK transaction Activity filters
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/gtk-transaction-activity-filters
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - run: python3 scripts/apply-gtk-activity-filters.py
+      - run: cargo fmt --all
+      - name: Commit Activity filters
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add crates/software-center/src/main.rs
+          git commit -m "feat(activity): add search and filters"
+          git push origin HEAD:feat/gtk-transaction-activity-filters
