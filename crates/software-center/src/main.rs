@@ -1,6 +1,7 @@
 mod activity_filter;
 mod activity_time;
 mod client;
+mod dashboard_view;
 mod security_view;
 mod service_view;
 
@@ -16,6 +17,7 @@ use std::{
 use activity_filter::{ALL_OPERATIONS, ALL_STATES, filter_records, summarize_records};
 use activity_time::{current_unix_ms, timing_text};
 use adw::prelude::*;
+use dashboard_view::summarize_dashboard;
 use genixbit_package_model::{
     AppRecord, CatalogPage, FeaturedCollection, PackageDetailRecord, PackageRecord, ServiceRecord,
     SystemHealth, SystemSnapshot, TransactionEvent, TransactionRecord, UpdateRecord,
@@ -40,6 +42,7 @@ struct UiState {
     window: adw::ApplicationWindow,
     dashboard_status: gtk::Label,
     health_list: gtk::ListBox,
+    dashboard_health: Rc<RefCell<Option<SystemHealth>>>,
     installed_entry: gtk::SearchEntry,
     installed_section: gtk::DropDown,
     installed_status: gtk::Label,
@@ -269,6 +272,7 @@ fn build_ui(application: &adw::Application) {
         window: window.clone(),
         dashboard_status,
         health_list,
+        dashboard_health: Rc::new(RefCell::new(None)),
         installed_entry,
         installed_section,
         installed_status,
@@ -907,7 +911,8 @@ fn start_snapshot_load(ui: &UiState) {
 fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     *ui.packages.borrow_mut() = snapshot.installed;
     populate_installed_sections(ui);
-    render_health(ui, &snapshot.health);
+    *ui.dashboard_health.borrow_mut() = Some(snapshot.health);
+    render_dashboard(ui);
     render_installed(ui);
     *ui.security_updates.borrow_mut() = snapshot.updates.clone();
     populate_security_sources(ui);
@@ -915,17 +920,17 @@ fn render_snapshot(ui: &UiState, snapshot: SystemSnapshot) {
     render_security(ui);
 }
 
-fn render_health(ui: &UiState, health: &SystemHealth) {
+fn render_dashboard(ui: &UiState) {
     clear_list(&ui.health_list);
-    let state = if health.broken_package_count == 0 {
-        "Package database reports no interrupted states"
-    } else {
-        "Package database requires attention"
+    let health_guard = ui.dashboard_health.borrow();
+    let Some(health) = health_guard.as_ref() else {
+        ui.dashboard_status.set_text("Loading system overview…");
+        return;
     };
-    ui.dashboard_status.set_text(&format!(
-        "{state}. {} installed packages, {} available updates and {} security updates.",
-        health.installed_count, health.update_count, health.security_update_count
-    ));
+    let services = ui.services.borrow();
+    let transactions = ui.activity_records.borrow();
+    let summary = summarize_dashboard(health, &services, &transactions);
+    ui.dashboard_status.set_text(&summary.status_text());
 
     append_health_row(
         &ui.health_list,
@@ -995,6 +1000,44 @@ fn render_health(ui: &UiState, health: &SystemHealth) {
         "Update origins",
         &update_origins,
         &format!("{} sources", health.update_sources.len()),
+    );
+    append_health_row(
+        &ui.health_list,
+        "Approved services",
+        &format!(
+            "{} active and {} failed across {} allowlisted services",
+            summary.active_services, summary.failed_services, summary.approved_services
+        ),
+        if summary.failed_services == 0 {
+            "Healthy"
+        } else {
+            "Attention"
+        },
+    );
+    append_health_row(
+        &ui.health_list,
+        "Transaction activity",
+        &format!(
+            "{} active, {} failed and {} interrupted across {} recent records",
+            summary.active_transactions,
+            summary.failed_transactions,
+            summary.interrupted_transactions,
+            summary.recent_transactions
+        ),
+        "Simulation only",
+    );
+    append_health_row(
+        &ui.health_list,
+        "Security posture",
+        &format!(
+            "{} security updates and {} broken package states",
+            summary.security_updates, summary.broken_packages
+        ),
+        if summary.security_updates == 0 && summary.broken_packages == 0 {
+            "Current"
+        } else {
+            "Review"
+        },
     );
 }
 
@@ -1233,6 +1276,7 @@ fn start_services_load(ui: &UiState) {
             Ok(Ok(services)) => {
                 *ui.services.borrow_mut() = services;
                 render_services(&ui);
+                render_dashboard(&ui);
                 glib::ControlFlow::Break
             }
             Ok(Err(error)) => {
@@ -1325,6 +1369,7 @@ fn start_activity_load(ui: &UiState) {
             Ok(Ok(records)) => {
                 *ui.activity_records.borrow_mut() = records;
                 render_activity(&ui);
+                render_dashboard(&ui);
                 glib::ControlFlow::Break
             }
             Ok(Err(error)) => {
@@ -1963,6 +2008,7 @@ fn format_size(size_kib: u64) -> String {
 
 fn render_backend_error(ui: &UiState, message: &str) {
     clear_list(&ui.health_list);
+    ui.dashboard_health.borrow_mut().take();
     ui.dashboard_status
         .set_text(&format!("Package service unavailable: {message}"));
     ui.installed_status.set_text(message);

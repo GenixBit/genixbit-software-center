@@ -26,7 +26,10 @@ impl DashboardSummary {
         if attention == 0 && !self.reboot_required {
             format!(
                 "System overview is clear. {} packages installed, {} updates, {} approved services and {} recent transactions.",
-                self.installed_packages, self.updates, self.approved_services, self.recent_transactions
+                self.installed_packages,
+                self.updates,
+                self.approved_services,
+                self.recent_transactions
             )
         } else {
             format!(
@@ -51,7 +54,12 @@ pub fn summarize_dashboard(
         approved_services: services.len(),
         active_services: services
             .iter()
-            .filter(|service| matches!(service.active_state.as_str(), "active" | "activating" | "reloading"))
+            .filter(|service| {
+                matches!(
+                    service.active_state.as_str(),
+                    "active" | "activating" | "reloading"
+                )
+            })
             .count(),
         failed_services: services
             .iter()
@@ -90,13 +98,28 @@ mod tests {
             ..SystemHealth::default()
         };
         let services = [
-            ServiceRecord { active_state: "active".into(), ..ServiceRecord::default() },
-            ServiceRecord { active_state: "failed".into(), ..ServiceRecord::default() },
+            ServiceRecord {
+                active_state: "active".into(),
+                ..ServiceRecord::default()
+            },
+            ServiceRecord {
+                active_state: "failed".into(),
+                ..ServiceRecord::default()
+            },
         ];
         let transactions = [
-            TransactionRecord { state: "running".into(), ..TransactionRecord::default() },
-            TransactionRecord { state: "failed".into(), ..TransactionRecord::default() },
-            TransactionRecord { state: "interrupted".into(), ..TransactionRecord::default() },
+            TransactionRecord {
+                state: "running".into(),
+                ..TransactionRecord::default()
+            },
+            TransactionRecord {
+                state: "failed".into(),
+                ..TransactionRecord::default()
+            },
+            TransactionRecord {
+                state: "interrupted".into(),
+                ..TransactionRecord::default()
+            },
         ];
         assert_eq!(
             summarize_dashboard(&health, &services, &transactions),
@@ -119,9 +142,16 @@ mod tests {
 
     #[test]
     fn formats_clear_and_attention_states() {
-        let clear = DashboardSummary { installed_packages: 10, approved_services: 1, ..DashboardSummary::default() };
+        let clear = DashboardSummary {
+            installed_packages: 10,
+            approved_services: 1,
+            ..DashboardSummary::default()
+        };
         assert!(clear.status_text().starts_with("System overview is clear."));
-        let attention = DashboardSummary { security_updates: 2, ..DashboardSummary::default() };
+        let attention = DashboardSummary {
+            security_updates: 2,
+            ..DashboardSummary::default()
+        };
         assert!(attention.status_text().contains("2 attention items"));
     }
 }
