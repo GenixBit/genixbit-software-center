@@ -1,8 +1,11 @@
 use genixbit_package_model::TransactionRecord;
 
+/// User-facing selector value that disables operation filtering.
 pub const ALL_OPERATIONS: &str = "All operations";
+/// User-facing selector value that disables state filtering.
 pub const ALL_STATES: &str = "All states";
 
+/// Returns matching records without changing their existing newest-first order.
 pub fn filter_records<'a>(
     records: &'a [TransactionRecord],
     query: &str,
