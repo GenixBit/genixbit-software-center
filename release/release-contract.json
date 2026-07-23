@@ -1,0 +1,44 @@
+{
+  "application_id": "com.genixbit.SoftwareCenter",
+  "architectures": [
+    "amd64",
+    "arm64"
+  ],
+  "crate_manifests": [
+    "crates/package-model/Cargo.toml",
+    "crates/software-center/Cargo.toml",
+    "crates/genixpkgd/Cargo.toml"
+  ],
+  "description": "Deterministic source, staged-bundle and retained-rollback validation contract for GenixBit Software Center releases.",
+  "package": "genixbit-software-center",
+  "required_bundle_paths": [
+    "usr/bin/genixbit-software-center",
+    "usr/libexec/genixpkgd",
+    "usr/share/applications/com.genixbit.SoftwareCenter.desktop",
+    "usr/share/dbus-1/interfaces/com.genixbit.PackageManager1.xml",
+    "usr/share/genixbit-software-center/com.genixbit.SoftwareCenter.css",
+    "usr/share/icons/hicolor/scalable/apps/com.genixbit.SoftwareCenter.svg",
+    "usr/share/icons/hicolor/symbolic/apps/com.genixbit.SoftwareCenter-symbolic.svg",
+    "usr/share/metainfo/com.genixbit.SoftwareCenter.metainfo.xml",
+    "usr/lib/systemd/system/genixpkgd.service"
+  ],
+  "required_source_assets": [
+    "Cargo.lock",
+    "data/com.genixbit.SoftwareCenter.desktop",
+    "data/com.genixbit.SoftwareCenter.metainfo.xml",
+    "data/com.genixbit.SoftwareCenter.css",
+    "data/icons/hicolor/scalable/apps/com.genixbit.SoftwareCenter.svg",
+    "data/icons/hicolor/symbolic/apps/com.genixbit.SoftwareCenter-symbolic.svg",
+    "dbus/com.genixbit.PackageManager1.xml",
+    "systemd/genixpkgd.service",
+    "os-image/default-packages.list"
+  ],
+  "rollback": {
+    "automatic": false,
+    "minimum_retained_releases": 1,
+    "same_major_only": true
+  },
+  "schema": 1,
+  "service": "genixpkgd.service",
+  "version": "0.2.0"
+}

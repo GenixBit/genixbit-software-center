@@ -24,6 +24,11 @@
     <category>System</category>
   </categories>
   <releases>
+    <release version="0.2.0" date="2026-07-23">
+      <description>
+        <p>Read-only product features, protected transaction simulations and GenixBit OS integration contracts.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-07-22">
       <description>
         <p>Initial native Rust, GTK4 and Libadwaita foundation.</p>
