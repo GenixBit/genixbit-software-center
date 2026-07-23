@@ -88,7 +88,7 @@ System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,0
 - [x] Branded icon and design tokens
 - [x] Default installation in the GenixBit OS image
 - [x] Repository signing validation
-- [ ] Release and rollback testing
+- [x] Release and rollback testing
 - [ ] Accessibility and keyboard-navigation audit
 - [ ] Translations
 - [ ] Stable D-Bus API versioning
@@ -96,6 +96,8 @@ System Profiles uses a deterministic, bounded text format with an 8 MiB and 20,0
 The OS image consumes `os-image/default-packages.list`; CI verifies the default package selection and required runtime assets without enabling package-changing operations.
 
 Repository signing validation audits staged APT sources offline, requires HTTPS and per-repository `Signed-By` keyrings, rejects insecure overrides, and verifies keyring files against image-builder SHA-256 pins. Repository refresh remains disabled in the application.
+
+Release validation builds the complete workspace in release mode and checks a tamper-evident current/previous artifact pair. Automatic rollback and all application package mutation remain disabled.
 
 ## Phase 6 — Future GenixPkg backend
 
